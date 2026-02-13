@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { Plus, Heart, MessageSquare, Share2, MoreHorizontal, CheckCircle2, ImageIcon } from 'lucide-react';
 
 interface Post {
@@ -21,7 +22,7 @@ interface FeedTabProps {
 }
 
 const FeedItem: React.FC<{ post: Post; isDark: boolean }> = ({ post, isDark }) => (
-  <div className={`p-6 border-b transition-all duration-500 group ${isDark ? 'border-white/5 bg-white/[0.02] hover:bg-white/[0.04]' : 'border-black/5 bg-black/[0.01] hover:bg-black/[0.03]'}`}>
+  <div className={`p-6 border rounded-[2.5rem] transition-all duration-500 group ${isDark ? 'border-white/5 bg-white/[0.02] hover:bg-white/[0.04]' : 'border-black/5 bg-white shadow-sm hover:bg-gray-50'}`}>
     <div className="flex gap-4">
       <div className={`w-12 h-12 rounded-2xl flex-shrink-0 flex items-center justify-center font-bold text-lg relative ${isDark ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}>
         {post.user[0]}
@@ -67,15 +68,19 @@ const FeedItem: React.FC<{ post: Post; isDark: boolean }> = ({ post, isDark }) =
 );
 
 const FeedTab: React.FC<FeedTabProps> = ({ isDark, posts }) => {
+  const router = useRouter();
   return (
     <div className="max-w-3xl mx-auto pt-32 pb-24 px-4">
       <div className="flex justify-between items-center mb-12 px-4">
         <h2 className="text-4xl font-black tracking-tight transition-colors">Activity Feed</h2>
-        <button className={`p-4 rounded-[1.5rem] shadow-2xl transition-all active:scale-95 ${isDark ? 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-500/20' : 'bg-black hover:bg-gray-800 shadow-black/20'} text-white`}>
+        <button
+          onClick={() => router.push('/create-post')}
+          className={`p-4 rounded-[1.5rem] shadow-2xl transition-all active:scale-95 ${isDark ? 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-500/20' : 'bg-black hover:bg-gray-800 shadow-black/20'} text-white`}
+        >
           <Plus className="w-6 h-6" />
         </button>
       </div>
-      <div className={`rounded-[3.5rem] border overflow-hidden backdrop-blur-3xl transition-all duration-500 ${isDark ? 'border-white/10 shadow-2xl bg-white/[0.02]' : 'border-black/10 shadow-xl bg-white'}`}>
+      <div className="flex flex-col gap-6">
         {posts.map(post => (
           <FeedItem key={post.id} post={post} isDark={isDark} />
         ))}

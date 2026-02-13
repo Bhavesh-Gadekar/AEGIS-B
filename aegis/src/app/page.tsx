@@ -1,9 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import * as THREE from 'three';
+import { useRouter, useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import {
   Shield,
   User,
@@ -43,144 +42,15 @@ import {
 
 import ProfileTab from '../components/tabs/ProfileTab';
 import ChatTab from '../components/tabs/ChatTab';
+import FeedTab from '../components/tabs/FeedTab';
+import RoadmapsTab from '../components/tabs/RoadmapsTab';
 
 // --- Antigravity Physics Component ---
 
-const AntigravityInner = ({
-  count = 280,
-  magnetRadius = 6,
-  ringRadius = 7,
-  waveSpeed = 0.4,
-  waveAmplitude = 1,
-  particleSize = 1.0,
-  lerpSpeed = 0.05,
-  color = "#5227FF",
-  autoAnimate = true,
-  particleVariance = 1,
-  rotationSpeed = 0,
-  depthFactor = 1,
-  pulseSpeed = 3,
-  particleShape = "capsule",
-  fieldStrength = 10
-}) => {
-  const meshRef = useRef(null);
-  const { viewport } = useThree();
-  const dummy = useMemo(() => new THREE.Object3D(), []);
-
-  const lastMousePos = useRef({ x: 0, y: 0 });
-  const lastMouseMoveTime = useRef(0);
-  const virtualMouse = useRef({ x: 0, y: 0 });
-
-  const particles = useMemo(() => {
-    const temp = [];
-    const width = viewport.width || 100;
-    const height = viewport.height || 100;
-
-    for (let i = 0; i < count; i++) {
-      const t = Math.random() * 100;
-      const factor = 20 + Math.random() * 100;
-      const speed = 0.01 + Math.random() / 200;
-      const x = (Math.random() - 0.5) * width;
-      const y = (Math.random() - 0.5) * height;
-      const z = (Math.random() - 0.5) * 20;
-      const randomRadiusOffset = (Math.random() - 0.5) * 2;
-
-      temp.push({ t, factor, speed, mx: x, my: y, mz: z, cx: x, cy: y, cz: z, vx: 0, vy: 0, vz: 0, randomRadiusOffset });
-    }
-    return temp;
-  }, [count, viewport.width, viewport.height]);
-
-  useFrame(state => {
-    const mesh = meshRef.current;
-    if (!mesh) return;
-
-    const { viewport: v, pointer: m } = state;
-    const mouseDist = Math.sqrt(Math.pow(m.x - lastMousePos.current.x, 2) + Math.pow(m.y - lastMousePos.current.y, 2));
-
-    if (mouseDist > 0.001) {
-      lastMouseMoveTime.current = Date.now();
-      lastMousePos.current = { x: m.x, y: m.y };
-    }
-
-    let destX = (m.x * v.width) / 2;
-    let destY = (m.y * v.height) / 2;
-
-    if (autoAnimate && Date.now() - lastMouseMoveTime.current > 2000) {
-      const time = state.clock.getElapsedTime();
-      destX = Math.sin(time * 0.5) * (v.width / 4);
-      destY = Math.cos(time * 0.5 * 2) * (v.height / 4);
-    }
-
-    const smoothFactor = 0.05;
-    virtualMouse.current.x += (destX - virtualMouse.current.x) * smoothFactor;
-    virtualMouse.current.y += (destY - virtualMouse.current.y) * smoothFactor;
-
-    const targetX = virtualMouse.current.x;
-    const targetY = virtualMouse.current.y;
-    const globalRotation = state.clock.getElapsedTime() * rotationSpeed;
-
-    particles.forEach((particle, i) => {
-      let { t, speed, mx, my, mz, cz, randomRadiusOffset } = particle;
-      t = particle.t += speed / 2;
-
-      const projectionFactor = 1 - cz / 50;
-      const projectedTargetX = targetX * projectionFactor;
-      const projectedTargetY = targetY * projectionFactor;
-
-      const dx = mx - projectedTargetX;
-      const dy = my - projectedTargetY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      let targetPos = { x: mx, y: my, z: mz * depthFactor };
-
-      if (dist < magnetRadius) {
-        const angle = Math.atan2(dy, dx) + globalRotation;
-        const wave = Math.sin(t * waveSpeed + angle) * (0.5 * waveAmplitude);
-        const deviation = randomRadiusOffset * (5 / (fieldStrength + 0.1));
-        const currentRingRadius = ringRadius + wave + deviation;
-
-        targetPos.x = projectedTargetX + currentRingRadius * Math.cos(angle);
-        targetPos.y = projectedTargetY + currentRingRadius * Math.sin(angle);
-        targetPos.z = mz * depthFactor + Math.sin(t) * (1 * waveAmplitude * depthFactor);
-      }
-
-      particle.cx += (targetPos.x - particle.cx) * lerpSpeed;
-      particle.cy += (targetPos.y - particle.cy) * lerpSpeed;
-      particle.cz += (targetPos.z - particle.cz) * lerpSpeed;
-
-      dummy.position.set(particle.cx, particle.cy, particle.cz);
-      dummy.lookAt(projectedTargetX, projectedTargetY, particle.cz);
-      dummy.rotateX(Math.PI / 2);
-
-      const currentDistToMouse = Math.sqrt(Math.pow(particle.cx - projectedTargetX, 2) + Math.pow(particle.cy - projectedTargetY, 2));
-      const distFromRing = Math.abs(currentDistToMouse - ringRadius);
-      let scaleFactor = 1 - distFromRing / 10;
-      scaleFactor = Math.max(0, Math.min(1, scaleFactor));
-
-      const finalScale = scaleFactor * (0.8 + Math.sin(t * pulseSpeed) * 0.2 * particleVariance) * particleSize;
-      dummy.scale.set(finalScale, finalScale, finalScale);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
-    });
-
-    mesh.instanceMatrix.needsUpdate = true;
-  });
-
-  return (
-    <instancedMesh ref={meshRef} args={[undefined, undefined, count]}>
-      <capsuleGeometry args={[0.06, 0.25, 4, 8]} />
-      <meshBasicMaterial color={color} transparent opacity={0.4} />
-    </instancedMesh>
-  );
-};
-
-const Antigravity = (props) => (
-  <div className="absolute inset-0 pointer-events-none z-0">
-    <Canvas camera={{ position: [0, 0, 50], fov: 35 }}>
-      <AntigravityInner {...props} />
-    </Canvas>
-  </div>
-);
+const Antigravity = dynamic(() => import('../components/AntigravityInteractive'), {
+  ssr: false,
+  loading: () => <div className="absolute inset-0 z-0 bg-transparent" />,
+});
 
 // --- Data ---
 
@@ -189,12 +59,17 @@ const INITIAL_ROADMAPS = [
   { id: 'ai', title: 'AI & Machine Learning', field: 'Intelligence', color: 'purple', steps: ['Linear Algebra', 'PyTorch Foundations', 'Transformer Models', 'LLM Fine-tuning'] },
   { id: 'cy', title: 'Cybersecurity Architect', field: 'Security', color: 'emerald', steps: ['Network Security', 'Penetration Testing', 'Cryptography', 'Cloud Compliance'] },
   { id: 'ds', title: 'Data Science Specialist', field: 'Analysis', color: 'amber', steps: ['Stat Analysis', 'R/Python Viz', 'Big Data Systems', 'Predictive Modeling'] },
+  { id: 'bc', title: 'Blockchain Developer', field: 'Web3', color: 'orange', steps: ['Smart Contracts', 'Solidity/Rust', 'DeFi Protocols', 'dApp Architecture'] },
+  { id: 'ca', title: 'Cloud Solutions Architect', field: 'Infrastructure', color: 'cyan', steps: ['AWS/Azure Services', 'Microservices', 'Kubernetes', 'Serverless Design'] },
+  { id: 'ux', title: 'UI/UX Design Systems', field: 'Design', color: 'pink', steps: ['User Research', 'Figma Prototyping', 'Design Tokens', 'Accessibility'] },
 ];
 
 const QUIZZES = [
   { id: 1, title: 'Data Structures & Algorithms', time: '15:00', difficulty: 'Hard', active: true },
   { id: 2, title: 'Quantum Computing Basics', time: '18:30', difficulty: 'Expert', active: false },
   { id: 3, title: 'UI/UX Design Systems', time: '21:00', difficulty: 'Medium', active: false },
+  { id: 4, title: 'Blockchain Security', time: '12:00', difficulty: 'Hard', active: true },
+  { id: 5, title: 'Cloud Architecture Patterns', time: '09:00', difficulty: 'Medium', active: true },
 ];
 
 const INITIAL_USERS = [
@@ -321,51 +196,7 @@ const SlidingNavbar = ({ activeTab, setActiveTab, isDark }) => {
   );
 };
 
-const FeedItem = ({ post, isDark }) => (
-  <div className={`p-6 border-b transition-all duration-500 group ${isDark ? 'border-white/5 bg-white/[0.02] hover:bg-white/[0.04]' : 'border-black/5 bg-black/[0.01] hover:bg-black/[0.03]'}`}>
-    <div className="flex gap-4">
-      <div className={`w-12 h-12 rounded-2xl flex-shrink-0 flex items-center justify-center font-bold text-lg relative ${isDark ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}>
-        {post.user[0]}
-        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-inherit flex items-center justify-center">
-          <CheckCircle2 className="w-2 h-2 text-white" />
-        </div>
-      </div>
-      <div className="flex-1">
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-sm">{post.user}</span>
-            <span className="text-gray-500 text-xs">{post.handle} • {post.time}</span>
-          </div>
-          <MoreHorizontal className="w-4 h-4 text-gray-500 cursor-pointer" />
-        </div>
-        <p className={`text-sm leading-relaxed mb-4 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-          {post.content}
-        </p>
 
-        {post.image && (
-          <div className={`w-full aspect-video rounded-3xl mb-4 overflow-hidden border border-white/10 bg-gradient-to-br transition-transform duration-500 group-hover:scale-[1.01] ${isDark ? 'from-zinc-900 via-indigo-900/10 to-zinc-900' : 'from-zinc-100 via-indigo-50 to-zinc-100'
-            } flex flex-col items-center justify-center gap-3 relative`}>
-            <div className="absolute inset-0 bg-black/10 backdrop-blur-[2px]" />
-            <ImageIcon className="w-8 h-8 opacity-20 relative z-10" />
-            <span className="text-[10px] font-bold uppercase tracking-[0.3em] opacity-30 relative z-10">Research Proof Data</span>
-          </div>
-        )}
-
-        <div className="flex items-center gap-8 text-gray-500">
-          <button className="flex items-center gap-1.5 hover:text-red-500 transition-colors">
-            <Heart className="w-4 h-4" /> <span className="text-xs font-bold">{post.likes}</span>
-          </button>
-          <button className="flex items-center gap-1.5 hover:text-indigo-500 transition-colors">
-            <MessageSquare className="w-4 h-4" /> <span className="text-xs font-bold">{post.comments}</span>
-          </button>
-          <button className="flex items-center gap-1.5 hover:text-emerald-500 transition-colors ml-auto">
-            <Share2 className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-);
 
 
 
@@ -430,10 +261,18 @@ const NetworkTab = ({ isDark, users, toggleFollow }) => (
 
 export default function App() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState('home');
   const [isDark, setIsDark] = useState(true);
   const [isLoaded, setIsLoaded] = useState(false);
   const [users, setUsers] = useState(INITIAL_USERS);
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     setIsLoaded(true);
@@ -570,74 +409,64 @@ export default function App() {
 
           {activeTab === 'profile' && <ProfileTab isDark={isDark} onLogout={handleLogout} />}
 
-          {activeTab === 'feed' && (
-            <div className="max-w-3xl mx-auto pt-32 pb-24 px-4">
-              <div className="flex justify-between items-center mb-12 px-4">
-                <h2 className="text-4xl font-black tracking-tight transition-colors">Activity Feed</h2>
-                <button className={`p-5 rounded-[1.5rem] shadow-2xl transition-all active:scale-95 ${isDark ? 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-500/20' : 'bg-black hover:bg-gray-800 shadow-black/20'} text-white`}>
-                  <Plus className="w-7 h-7" />
-                </button>
-              </div>
-              <div className={`rounded-[3.5rem] border overflow-hidden backdrop-blur-3xl transition-all duration-500 ${isDark ? 'border-white/10 shadow-2xl bg-white/[0.02]' : 'border-black/10 shadow-xl bg-white'}`}>
-                {TEST_FEED.map(post => (
-                  <FeedItem key={post.id} post={post} isDark={isDark} />
-                ))}
-              </div>
-            </div>
-          )}
+          {activeTab === 'feed' && <FeedTab isDark={isDark} posts={TEST_FEED} />}
 
           {activeTab === 'network' && <NetworkTab isDark={isDark} users={users} toggleFollow={toggleFollow} />}
 
           {activeTab === 'chat' && <ChatTab isDark={isDark} users={users} />}
 
-          {(activeTab === 'roadmaps' || activeTab === 'quiz') && (
+          {activeTab === 'roadmaps' && <RoadmapsTab isDark={isDark} roadmaps={INITIAL_ROADMAPS} />}
+
+          {activeTab === 'quiz' && (
             <div className="pt-32 pb-20 px-6 md:px-10 max-w-7xl mx-auto">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-16 px-4">
-                <h2 className="text-5xl font-black tracking-tight transition-colors italic uppercase">{activeTab}</h2>
+                <h2 className="text-5xl font-black tracking-tight transition-colors italic uppercase">Quiz</h2>
                 <div className={`flex items-center gap-4 px-5 py-3 border rounded-full w-full md:w-auto transition-all ${isDark ? 'bg-white/5 border-white/10 focus-within:border-indigo-500/50 shadow-lg' : 'bg-white border-black/10 shadow-sm'}`}>
                   <Search className="w-4 h-4 opacity-50" />
-                  <input type="text" placeholder={`Filter ${activeTab}...`} className="bg-transparent border-none focus:ring-0 text-xs w-full md:w-56 font-bold uppercase tracking-widest" />
+                  <input type="text" placeholder="Filter Quiz..." className="bg-transparent border-none focus:ring-0 text-xs w-full md:w-56 font-bold uppercase tracking-widest" />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-                {activeTab === 'roadmaps' && INITIAL_ROADMAPS.map(r => (
-                  <div key={r.id} className={`p-12 rounded-[4rem] border transition-all duration-500 group relative ${isDark ? 'bg-white/[0.02] border-white/10 hover:border-indigo-500/50 shadow-2xl' : 'bg-white border-black/10 shadow-xl hover:shadow-2xl'}`}>
-                    <div className={`w-16 h-16 rounded-[1.5rem] mb-10 flex items-center justify-center bg-indigo-500/10 text-indigo-500 shadow-lg shadow-indigo-500/5`}>
-                      <Map className="w-8 h-8" />
-                    </div>
-                    <h3 className="text-2xl font-black mb-3 transition-colors tracking-tight">{r.title}</h3>
-                    <p className="text-[11px] text-indigo-500 uppercase font-black mb-10 tracking-[0.4em]">{r.field}</p>
-                    <div className="space-y-5">
-                      {r.steps.map((s, i) => (
-                        <div key={i} className="flex items-center gap-5 text-sm font-medium opacity-60 group-hover:opacity-100 transition-opacity">
-                          <div className="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.8)]" /> {s}
-                        </div>
-                      ))}
-                    </div>
-                    <button className={`w-full mt-12 py-5 rounded-[1.8rem] font-black uppercase tracking-[0.3em] text-[10px] border transition-all active:scale-[0.98] ${isDark ? 'bg-white/5 border-white/10 hover:bg-white hover:text-black shadow-lg shadow-white/5' : 'bg-gray-50 border-black/5 hover:bg-black hover:text-white shadow-sm'
-                      }`}>
-                      Analyze Mastery
-                    </button>
-                  </div>
-                ))}
-                {activeTab === 'quiz' && QUIZZES.map(q => (
-                  <div key={q.id} className={`p-12 rounded-[4rem] border transition-all duration-500 group ${isDark ? 'bg-white/[0.02] border-white/10 hover:border-amber-500/50 shadow-2xl' : 'bg-white border-black/10 shadow-xl hover:shadow-2xl'}`}>
+                {QUIZZES.map(q => (
+                  <div key={q.id} className={`p-12 rounded-[4rem] border transition-all duration-500 group relative hover:scale-[1.02] cursor-pointer flex flex-col ${isDark ? 'bg-white/[0.02] border-white/10 hover:border-amber-500/50 shadow-2xl' : 'bg-white border-black/10 shadow-xl hover:shadow-2xl'}`}
+                    onClick={() => router.push(`/quiz/${q.id}`)}
+                  >
                     <div className="flex justify-between items-start mb-12">
                       <Trophy className="w-14 h-14 text-amber-500 drop-shadow-[0_0_15px_rgba(245,158,11,0.4)]" />
                       <span className={`px-5 py-2 rounded-full text-[10px] font-black tracking-widest uppercase border ${isDark ? 'bg-amber-500/10 border-amber-500/20 text-amber-500 shadow-lg' : 'bg-amber-50 border-amber-500/20 text-amber-600 shadow-sm'
                         }`}>{q.difficulty}</span>
                     </div>
-                    <h3 className="text-2xl font-black mb-5 leading-tight transition-colors tracking-tight">{q.title}</h3>
-                    <p className="text-sm opacity-60 mb-12 font-bold transition-opacity tracking-tight">
-                      {q.active ? `Live session concluding in ${q.time}` : `Guarded start: ${q.time}`}
-                    </p>
-                    <button className={`w-full py-5 rounded-[1.8rem] font-black uppercase tracking-[0.3em] text-[10px] transition-all active:scale-[0.98] ${q.active
-                      ? 'bg-amber-500 text-white hover:bg-amber-400 shadow-xl shadow-amber-500/30'
-                      : (isDark ? 'bg-white/5 border border-white/10 text-white hover:bg-white/10' : 'bg-gray-50 border border-black/10 text-black hover:bg-gray-100 shadow-sm')
-                      }`}>
-                      {q.active ? 'Join Secure Hall' : 'Request Reminder'}
-                    </button>
+                    <div className="flex-1">
+                      <h3 className="text-2xl font-black mb-5 leading-tight transition-colors tracking-tight">{q.title}</h3>
+                      <p className="text-sm opacity-60 mb-12 font-bold transition-opacity tracking-tight">
+                        {q.active ? `Live session concluding in ${q.time}` : `Guarded start: ${q.time}`}
+                      </p>
+                    </div>
+                    <div className="flex gap-4 mt-auto">
+                      <button
+                        className={`flex-1 py-4 px-6 rounded-[1.2rem] font-black uppercase tracking-[0.2em] text-[9px] transition-all active:scale-[0.98] ${q.active
+                          ? 'bg-amber-500 text-white hover:bg-amber-400 shadow-xl shadow-amber-500/30'
+                          : (isDark ? 'bg-white/5 border border-white/10 text-white hover:bg-white/10' : 'bg-gray-50 border border-black/10 text-black hover:bg-gray-100 shadow-sm')
+                          }`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (q.active) router.push(`/quiz/${q.id}`);
+                        }}
+                      >
+                        {q.active ? 'Join' : 'Remind'}
+                      </button>
+                      <button
+                        className={`flex-1 py-4 px-6 rounded-[1.2rem] font-black uppercase tracking-[0.2em] text-[9px] border transition-all active:scale-[0.98] ${isDark ? 'bg-transparent border-white/20 text-white hover:bg-white/10' : 'bg-transparent border-black/20 text-black hover:bg-black/5'
+                          }`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/quiz/${q.id}`);
+                        }}
+                      >
+                        Details
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

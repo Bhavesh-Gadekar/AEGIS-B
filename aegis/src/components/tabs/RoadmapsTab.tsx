@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { Search, Map } from 'lucide-react';
 
 interface Roadmap {
@@ -16,6 +17,8 @@ interface RoadmapsTabProps {
 }
 
 const RoadmapsTab: React.FC<RoadmapsTabProps> = ({ isDark, roadmaps }) => {
+  const router = useRouter();
+
   return (
     <div className="pt-48 pb-20 px-6 md:px-10 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-16 px-4">
@@ -25,10 +28,13 @@ const RoadmapsTab: React.FC<RoadmapsTabProps> = ({ isDark, roadmaps }) => {
           <input type="text" placeholder="Filter roadmaps..." className="bg-transparent border-none focus:ring-0 text-xs w-full md:w-56 font-bold uppercase tracking-widest" />
         </div>
       </div>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
         {roadmaps.map(r => (
-          <div key={r.id} className={`p-12 rounded-[4rem] border transition-all duration-500 group relative ${isDark ? 'bg-white/[0.02] border-white/10 hover:border-indigo-500/50 shadow-2xl' : 'bg-white border-black/10 shadow-xl hover:shadow-2xl'}`}>
+          <div
+            key={r.id}
+            className={`p-12 rounded-[4rem] border transition-all duration-500 group relative hover:scale-[1.02] ${isDark ? 'bg-white/[0.02] border-white/10 hover:border-indigo-500/50 shadow-2xl' : 'bg-white border-black/10 shadow-xl hover:shadow-2xl'}`}
+          >
             <div className={`w-16 h-16 rounded-[1.5rem] mb-10 flex items-center justify-center bg-indigo-500/10 text-indigo-500 shadow-lg shadow-indigo-500/5`}>
               <Map className="w-8 h-8" />
             </div>
@@ -41,9 +47,13 @@ const RoadmapsTab: React.FC<RoadmapsTabProps> = ({ isDark, roadmaps }) => {
                 </div>
               ))}
             </div>
-            <button className={`w-full mt-12 py-5 rounded-[1.8rem] font-black uppercase tracking-[0.3em] text-[10px] border transition-all active:scale-[0.98] ${
-              isDark ? 'bg-white/5 border-white/10 hover:bg-white hover:text-black shadow-lg shadow-white/5' : 'bg-gray-50 border-black/5 hover:bg-black hover:text-white shadow-sm'
-            }`}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(`/roadmaps/${r.id}`);
+              }}
+              className={`w-full mt-12 py-5 rounded-[1.8rem] font-black uppercase tracking-[0.3em] text-[10px] border transition-all active:scale-[0.98] ${isDark ? 'bg-white/5 border-white/10 hover:bg-white hover:text-black shadow-lg shadow-white/5' : 'bg-gray-50 border-black/5 hover:bg-black hover:text-white shadow-sm'
+                }`}>
               Analyze Mastery
             </button>
           </div>

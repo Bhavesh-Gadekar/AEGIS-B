@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   CheckCircle2,
   ArrowUpRight,
@@ -12,7 +13,8 @@ import {
   Heart,
   MessageCircle,
   Camera,
-  Briefcase
+  Briefcase,
+  Shield // Added Shield
 } from 'lucide-react';
 
 interface ProfileTabProps {
@@ -21,6 +23,7 @@ interface ProfileTabProps {
 }
 
 const ProfileTab: React.FC<ProfileTabProps> = ({ isDark, onLogout }) => {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'posts' | 'resume'>('posts');
 
   const stats = [
@@ -29,13 +32,14 @@ const ProfileTab: React.FC<ProfileTabProps> = ({ isDark, onLogout }) => {
     { label: 'Following', value: '482' },
   ];
 
+  // Enhanced posts data with more context matching the academic theme
   const posts = [
-    { id: 1, type: 'image', color: 'bg-indigo-500' },
-    { id: 2, type: 'image', color: 'bg-purple-500' },
-    { id: 3, type: 'video', color: 'bg-emerald-500' },
-    { id: 4, type: 'image', color: 'bg-blue-500' },
-    { id: 5, type: 'carousel', color: 'bg-orange-500' },
-    { id: 6, type: 'image', color: 'bg-pink-500' },
+    { id: 1, type: 'research', title: 'Zero-Knowledge Proofs', likes: 124, comments: 18 },
+    { id: 2, type: 'certificate', title: 'Advanced Cryptography', likes: 89, comments: 12 },
+    { id: 3, type: 'media', title: 'Conference Demo', likes: 256, comments: 42 },
+    { id: 4, type: 'analysis', title: 'Network Security', likes: 167, comments: 24 },
+    { id: 5, type: 'research', title: 'DeFi Protocols', likes: 142, comments: 15 },
+    { id: 6, type: 'media', title: 'Lab Setup', likes: 98, comments: 8 },
   ];
 
   return (
@@ -88,7 +92,10 @@ const ProfileTab: React.FC<ProfileTabProps> = ({ isDark, onLogout }) => {
             <button className={`px-8 py-3 rounded-xl text-sm font-bold transition-all transform active:scale-95 ${isDark ? 'bg-white text-black hover:bg-gray-200' : 'bg-black text-white hover:bg-gray-800'}`}>
               Edit Profile
             </button>
-            <button className={`p-3 rounded-xl transition-all border ${isDark ? 'border-white/20 hover:bg-white/10' : 'border-black/10 hover:bg-gray-100'}`}>
+            <button
+              onClick={() => router.push('/settings')}
+              className={`p-3 rounded-xl transition-all border ${isDark ? 'border-white/20 hover:bg-white/10' : 'border-black/10 hover:bg-gray-100'}`}
+            >
               <Settings className="w-5 h-5" />
             </button>
             <button
@@ -107,8 +114,8 @@ const ProfileTab: React.FC<ProfileTabProps> = ({ isDark, onLogout }) => {
         <button
           onClick={() => setActiveTab('posts')}
           className={`flex items-center gap-2 px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'posts'
-              ? (isDark ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-black text-white shadow-xl shadow-black/20')
-              : 'opacity-50 hover:opacity-100'
+            ? (isDark ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-black text-white shadow-xl shadow-black/20')
+            : 'opacity-50 hover:opacity-100'
             }`}
         >
           <Grid className="w-4 h-4" />
@@ -117,8 +124,8 @@ const ProfileTab: React.FC<ProfileTabProps> = ({ isDark, onLogout }) => {
         <button
           onClick={() => setActiveTab('resume')}
           className={`flex items-center gap-2 px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'resume'
-              ? (isDark ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-black text-white shadow-xl shadow-black/20')
-              : 'opacity-50 hover:opacity-100'
+            ? (isDark ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-black text-white shadow-xl shadow-black/20')
+            : 'opacity-50 hover:opacity-100'
             }`}
         >
           <Briefcase className="w-4 h-4" />
@@ -131,21 +138,48 @@ const ProfileTab: React.FC<ProfileTabProps> = ({ isDark, onLogout }) => {
         {activeTab === 'posts' && (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
             {posts.map((post) => (
-              <div key={post.id} className={`aspect-square relative group cursor-pointer overflow-hidden rounded-2xl md:rounded-3xl transition-transform hover:scale-[1.02] ${post.color}`}>
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-6 opacity-0 group-hover:opacity-100 backdrop-blur-sm">
-                  <div className="flex items-center gap-1 text-white font-bold">
-                    <Heart className="w-6 h-6 fill-white drop-shadow-lg" /> 124
+              <div key={post.id} className={`aspect-square relative group cursor-pointer overflow-hidden rounded-[2rem] border transition-all duration-500 hover:scale-[1.02] ${isDark ? 'bg-white/[0.02] border-white/10 hover:border-indigo-500/50 hover:shadow-2xl hover:shadow-indigo-500/10' : 'bg-white border-black/5 hover:border-indigo-500/30 hover:shadow-xl'
+                }`}>
+                {/* Card Content */}
+                <div className={`absolute inset-0 flex flex-col items-center justify-center gap-4 transition-opacity duration-300 group-hover:opacity-20`}>
+                  {post.type === 'research' && <FileText className={`w-8 h-8 opacity-40 ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`} />}
+                  {post.type === 'certificate' && <Shield className={`w-8 h-8 opacity-40 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />}
+                  {post.type === 'media' && <Camera className={`w-8 h-8 opacity-40 ${isDark ? 'text-pink-400' : 'text-pink-600'}`} />}
+                  {post.type === 'analysis' && <Brain className={`w-8 h-8 opacity-40 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />}
+                  <span className="text-[10px] font-black uppercase tracking-widest opacity-30 text-center px-4">
+                    {post.title}
+                  </span>
+                </div>
+
+                {/* Hover Overlay */}
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center gap-4 backdrop-blur-[2px]">
+                  <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2 text-white font-bold">
+                      <Heart className="w-5 h-5 fill-white" />
+                      <span className="text-sm">{post.likes}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-white font-bold">
+                      <MessageCircle className="w-5 h-5 fill-white" />
+                      <span className="text-sm">{post.comments}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1 text-white font-bold">
-                    <MessageCircle className="w-6 h-6 fill-white drop-shadow-lg" /> 18
-                  </div>
+                  <span className="px-4 py-1.5 rounded-full bg-white/10 text-white text-[9px] font-black uppercase tracking-widest border border-white/20">
+                    View {post.type}
+                  </span>
                 </div>
               </div>
             ))}
+
             {/* New Post Placeholder */}
-            <div className={`aspect-square flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-2xl md:rounded-3xl cursor-pointer transition-colors group ${isDark ? 'border-white/10 hover:border-white/30 hover:bg-white/5' : 'border-black/10 hover:border-black/30 hover:bg-gray-50'}`}>
-              <Camera className={`w-10 h-10 transition-transform group-hover:scale-110 ${isDark ? 'text-white/30' : 'text-black/30'}`} />
-              <span className="text-[10px] font-black uppercase tracking-widest opacity-30">New Post</span>
+            <div className={`aspect-square flex flex-col items-center justify-center gap-3 border border-dashed rounded-[2rem] cursor-pointer transition-all duration-300 group ${isDark ? 'border-white/10 hover:border-white/30 hover:bg-white/5' : 'border-black/10 hover:border-black/30 hover:bg-black/5'
+              }`}>
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-500 text-indigo-500 group-hover:scale-110 ${isDark ? 'bg-indigo-500/20' : 'bg-indigo-50'
+                }`}>
+                <Camera className="w-5 h-5" />
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40 group-hover:opacity-100 transition-opacity">
+                Create Post
+              </span>
             </div>
           </div>
         )}
