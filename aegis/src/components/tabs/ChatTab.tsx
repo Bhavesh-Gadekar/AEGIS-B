@@ -18,6 +18,7 @@ import {
 interface User {
   id: number;
   name: string;
+  handle?: string;
   role: string;
   avatar: string;
   following: boolean;
@@ -45,7 +46,7 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark, users }) => {
         <div className={`w-24 md:w-96 border-r flex flex-col transition-colors ${isDark ? 'border-white/10 bg-black' : 'border-black/5 bg-white'}`}>
           {/* Sidebar Header */}
           <div className="p-6 md:p-8 flex items-center justify-center md:justify-between">
-            <h3 className="hidden md:block font-bold text-xl tracking-tight">jaimil_patel</h3>
+            <h3 className="hidden md:block font-bold text-xl tracking-tight">@jaimil_p</h3>
             <div className="flex gap-4">
               <Plus className="w-7 h-7 cursor-pointer" />
             </div>
@@ -76,7 +77,10 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark, users }) => {
                   )}
                 </div>
                 <div className="hidden md:block flex-1 min-w-0">
-                  <p className={`text-sm font-semibold truncate ${selectedUser.id === u.id ? (isDark ? 'text-white' : 'text-black') : (isDark ? 'text-gray-300' : 'text-gray-700')}`}>{u.name}</p>
+                  <div className="flex justify-between items-baseline">
+                    <p className={`text-sm font-semibold truncate ${selectedUser.id === u.id ? (isDark ? 'text-white' : 'text-black') : (isDark ? 'text-gray-300' : 'text-gray-700')}`}>{u.name}</p>
+                    {u.handle && <span className="text-[10px] opacity-50 font-medium ml-2">{u.handle}</span>}
+                  </div>
                   <p className="text-xs text-gray-500 truncate mt-0.5">
                     {u.online ? 'Active now' : `Sent you a message • 2h`}
                   </p>
@@ -95,7 +99,10 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark, users }) => {
                 {selectedUser.avatar}
               </div>
               <div>
-                <p className="font-bold text-base leading-tight">{selectedUser.name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-bold text-base leading-tight">{selectedUser.name}</p>
+                  {selectedUser.handle && <span className="text-xs opacity-50 font-bold">{selectedUser.handle}</span>}
+                </div>
                 <p className="text-xs text-gray-500 font-medium">{selectedUser.online ? 'Active now' : 'Active 1h ago'}</p>
               </div>
             </div>

@@ -73,10 +73,10 @@ const QUIZZES = [
 ];
 
 const INITIAL_USERS = [
-  { id: 1, name: 'Jaimil Patel', role: 'Lead Software Architect', avatar: 'JP', following: true, achievements: 18, online: true },
-  { id: 2, name: 'Prajwal Anandgaonkar', role: 'AI Engineering @ Stanford', avatar: 'PA', following: false, achievements: 12, online: false },
-  { id: 3, name: 'Bhavesh Gadekar', role: 'Theoretical Physics @ Princeton', avatar: 'BG', following: true, achievements: 15, online: true },
-  { id: 4, name: 'Sahil Shigwan', role: 'Distributed Systems Analyst', avatar: 'SS', following: true, achievements: 21, online: true },
+  { id: 1, name: 'Jaimil Patel', handle: '@jaimil_p', role: 'Lead Software Architect', avatar: 'JP', following: true, achievements: 18, online: true },
+  { id: 2, name: 'Prajwal Anandgaonkar', handle: '@prajwal_a', role: 'AI Engineering @ Stanford', avatar: 'PA', following: false, achievements: 12, online: false },
+  { id: 3, name: 'Bhavesh Gadekar', handle: '@bhavesh_g', role: 'Theoretical Physics @ Princeton', avatar: 'BG', following: true, achievements: 15, online: true },
+  { id: 4, name: 'Sahil Shigwan', handle: '@sahil_s', role: 'Distributed Systems Analyst', avatar: 'SS', following: true, achievements: 21, online: true },
 ];
 
 const TEST_FEED = [
@@ -396,8 +396,6 @@ export default function App() {
 
               <div className="absolute bottom-10 left-0 w-full px-6 md:px-16 flex justify-between items-center opacity-40 z-20">
                 <div className="flex gap-8 md:gap-16 items-center grayscale hover:grayscale-0 transition-all duration-500 font-bold text-[10px] md:text-xs tracking-widest uppercase">
-                  <div>VERCEL</div>
-                  <div>LOOM</div>
                 </div>
                 <div className="hidden sm:flex items-center gap-6 text-[10px] tracking-[0.4em] uppercase font-black">
                   <span className={`h-[1px] w-12 ${isDark ? 'bg-white/20' : 'bg-black/20'}`}></span>
@@ -475,7 +473,7 @@ export default function App() {
         </div>
       </main>
 
-      <div className={`fixed bottom-10 left-10 z-50 hidden sm:flex items-center gap-4 px-6 py-3 rounded-2xl border backdrop-blur-2xl transition-all duration-500 hover:scale-105 ${isDark ? 'bg-black/40 border-white/10 shadow-2xl shadow-indigo-500/20' : 'bg-white/80 border-black/10 shadow-xl'
+      <div className={`fixed bottom-6 left-6 z-50 hidden sm:flex items-center gap-3 px-4 py-2 rounded-xl border backdrop-blur-2xl transition-all duration-500 hover:scale-100 scale-90 origin-bottom-left ${isDark ? 'bg-black/40 border-white/10 shadow-2xl shadow-indigo-500/20' : 'bg-white/80 border-black/10 shadow-xl'
         }`}>
         <div className="relative">
           <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,1)]" />

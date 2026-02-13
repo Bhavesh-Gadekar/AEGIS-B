@@ -14,7 +14,8 @@ import {
   MessageCircle,
   Camera,
   Briefcase,
-  Shield // Added Shield
+  Shield, // Added Shield
+  Sparkles // Added Sparkles
 } from 'lucide-react';
 
 interface ProfileTabProps {
@@ -89,7 +90,9 @@ const ProfileTab: React.FC<ProfileTabProps> = ({ isDark, onLogout }) => {
 
           {/* Actions */}
           <div className="flex flex-wrap justify-center gap-4 w-full md:w-auto">
-            <button className={`px-8 py-3 rounded-xl text-sm font-bold transition-all transform active:scale-95 ${isDark ? 'bg-white text-black hover:bg-gray-200' : 'bg-black text-white hover:bg-gray-800'}`}>
+            <button
+              onClick={() => router.push('/edit-profile')}
+              className={`px-8 py-3 rounded-xl text-sm font-bold transition-all transform active:scale-95 ${isDark ? 'bg-white text-black hover:bg-gray-200' : 'bg-black text-white hover:bg-gray-800'}`}>
               Edit Profile
             </button>
             <button
@@ -187,7 +190,7 @@ const ProfileTab: React.FC<ProfileTabProps> = ({ isDark, onLogout }) => {
         {activeTab === 'resume' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Resume Analyse Card */}
-            <div className={`p-8 md:p-10 rounded-[2.5rem] border transition-all relative overflow-hidden group hover:scale-[1.01] ${isDark ? 'bg-white/5 border-white/10 hover:border-indigo-500/50 hover:shadow-2xl hover:shadow-indigo-500/10' : 'bg-white border-black/5 hover:border-indigo-500/20 shadow-xl hover:shadow-2xl'}`}>
+            <div className={`flex flex-col p-8 md:p-10 rounded-[2.5rem] border transition-all relative overflow-hidden group hover:scale-[1.01] ${isDark ? 'bg-white/5 border-white/10 hover:border-indigo-500/50 hover:shadow-2xl hover:shadow-indigo-500/10' : 'bg-white border-black/5 hover:border-indigo-500/20 shadow-xl hover:shadow-2xl'}`}>
               <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
                 <Brain className="w-32 h-32 rotate-12" />
               </div>
@@ -198,25 +201,31 @@ const ProfileTab: React.FC<ProfileTabProps> = ({ isDark, onLogout }) => {
               <p className="text-sm opacity-60 font-medium mb-8 leading-relaxed max-w-xs">
                 Deploy AEGIS intelligent core to scan your CV for industry standard compliance and optimization points.
               </p>
-              <button className={`w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-transform active:scale-95 ${isDark ? 'bg-white text-black hover:bg-indigo-50' : 'bg-black text-white hover:bg-gray-800'}`}>
+              <button
+                onClick={() => router.push('/resume-analysis')}
+                className={`w-full mt-auto py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-transform active:scale-95 ${isDark ? 'bg-white text-black hover:bg-indigo-50' : 'bg-black text-white hover:bg-gray-800'}`}
+              >
                 Start Analysis
               </button>
             </div>
 
-            {/* Guarded CV Card */}
-            <div className={`p-8 md:p-10 rounded-[2.5rem] border transition-all relative overflow-hidden group hover:scale-[1.01] ${isDark ? 'bg-white/5 border-white/10 hover:border-emerald-500/50 hover:shadow-2xl hover:shadow-emerald-500/10' : 'bg-white border-black/5 hover:border-emerald-500/20 shadow-xl hover:shadow-2xl'}`}>
+            {/* AI Resume Build Card */}
+            <div className={`flex flex-col p-8 md:p-10 rounded-[2.5rem] border transition-all relative overflow-hidden group hover:scale-[1.01] ${isDark ? 'bg-white/5 border-white/10 hover:border-amber-500/50 hover:shadow-2xl hover:shadow-amber-500/10' : 'bg-white border-black/5 hover:border-amber-500/20 shadow-xl hover:shadow-2xl'}`}>
               <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
-                <FileText className="w-32 h-32 -rotate-12" />
+                <Sparkles className="w-32 h-32 -rotate-12" />
               </div>
-              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 text-emerald-500 ${isDark ? 'bg-emerald-500/20' : 'bg-emerald-50'}`}>
-                <FileText className="w-7 h-7" />
+              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 text-amber-500 ${isDark ? 'bg-amber-500/20' : 'bg-amber-50'}`}>
+                <Sparkles className="w-7 h-7" />
               </div>
-              <h3 className="text-2xl font-black mb-3">Guarded CV</h3>
+              <h3 className="text-2xl font-black mb-3">AI Resume Build</h3>
               <p className="text-sm opacity-60 font-medium mb-8 leading-relaxed max-w-xs">
-                Generate a cryptographically verified professional resume stored on the guarded network.
+                Build a professional resume from scratch with Gemini AI assistance.
               </p>
-              <button className={`w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-transform active:scale-95 border ${isDark ? 'border-white/20 hover:bg-white/10' : 'border-black/10 hover:bg-black/5'}`}>
-                Create Guarded CV
+              <button
+                onClick={() => router.push('/ai-resume-build')}
+                className={`w-full mt-auto py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-transform active:scale-95 border ${isDark ? 'border-white/20 hover:bg-white/10' : 'border-black/10 hover:bg-black/5'}`}
+              >
+                Build Resume
               </button>
             </div>
           </div>

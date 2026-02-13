@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Search, Map } from 'lucide-react';
 
 interface Roadmap {
-  id: number;
+  id: string | number;
   title: string;
   field: string;
   steps: string[];
@@ -20,7 +20,7 @@ const RoadmapsTab: React.FC<RoadmapsTabProps> = ({ isDark, roadmaps }) => {
   const router = useRouter();
 
   return (
-    <div className="pt-48 pb-20 px-6 md:px-10 max-w-7xl mx-auto">
+    <div className="pt-32 pb-20 px-6 md:px-10 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-16 px-4">
         <h2 className="text-5xl font-black tracking-tight transition-colors italic uppercase">Roadmaps</h2>
         <div className={`flex items-center gap-4 px-5 py-3 border rounded-full w-full md:w-auto transition-all ${isDark ? 'bg-white/5 border-white/10 focus-within:border-indigo-500/50 shadow-lg' : 'bg-white border-black/10 shadow-sm'}`}>
