@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Search, CheckCircle2, MoreHorizontal } from 'lucide-react';
 
 interface User {
-  id: number;
+  id: string | number;
   name: string;
   role: string;
   avatar: string;
@@ -16,7 +16,7 @@ interface User {
 interface NetworkTabProps {
   isDark: boolean;
   users: User[];
-  toggleFollow: (id: number) => void;
+  toggleFollow: (id: string | number) => void;
 }
 
 const NetworkTab: React.FC<NetworkTabProps> = ({ isDark, users, toggleFollow }) => {

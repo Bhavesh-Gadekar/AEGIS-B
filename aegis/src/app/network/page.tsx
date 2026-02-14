@@ -1,10 +1,10 @@
-"use client";
-
 import React from 'react';
-import NetworkTab from '@/components/tabs/NetworkTab';
-import { useAppContext } from '@/components/AppProvider';
+import { getNetworkUsers } from '@/actions/network';
+import NetworkClientWrapper from './NetworkClientWrapper';
 
-export default function NetworkPage() {
-    const { isDark, users, toggleFollow } = useAppContext();
-    return <NetworkTab isDark={isDark} users={users} toggleFollow={toggleFollow} />;
+// Mark as async to enable server-side fetching
+export default async function NetworkPage() {
+    const users = await getNetworkUsers();
+
+    return <NetworkClientWrapper initialUsers={users} />;
 }
