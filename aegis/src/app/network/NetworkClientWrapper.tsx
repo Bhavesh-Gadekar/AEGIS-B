@@ -8,8 +8,24 @@ export default function NetworkClientWrapper({ initialUsers }: { initialUsers: a
     const { isDark } = useAppContext();
     const [users, setUsers] = useState(initialUsers);
 
-    const toggleFollow = (id: string | number) => {
+    const toggleFollow = async (id: string | number) => {
+        // Optimistic update
         setUsers(prev => prev.map(u => u.id === id ? { ...u, following: !u.following } : u));
+
+        try {
+            const { toggleFollowUser } = await import('@/actions/network');
+            const result = await toggleFollowUser(String(id));
+
+            if (result.error) {
+                // Revert on error
+                setUsers(prev => prev.map(u => u.id === id ? { ...u, following: !u.following } : u));
+                alert(result.error); // Or toast if available
+            }
+        } catch (error) {
+            // Revert on error
+            setUsers(prev => prev.map(u => u.id === id ? { ...u, following: !u.following } : u));
+            console.error(error);
+        }
     };
 
     return <NetworkTab isDark={isDark} users={users} toggleFollow={toggleFollow} />;

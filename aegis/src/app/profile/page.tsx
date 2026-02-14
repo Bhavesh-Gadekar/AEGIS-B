@@ -1,17 +1,18 @@
-"use client";
-
 import React from 'react';
 import ProfileTab from '@/components/tabs/ProfileTab';
-import { useAppContext } from '@/components/AppProvider';
-import { logout } from '@/actions/auth';
 
-export default function ProfilePage() {
-    const { isDark } = useAppContext();
-    // const router = useRouter(); // router is not needed if we use server action redirect, but might remain for other things if needed. Actually it's cleaner to just let the action handle redirect.
+import { getProfile } from '@/actions/profile';
+import { getUserPosts } from '@/actions/feed';
 
-    const handleLogout = async () => {
-        await logout();
-    };
+export default async function ProfilePage() {
+    const profile = await getProfile();
+    // If no profile (not logged in), we can't fetch THEIR posts easily without ID.
+    // getProfile without ID fetches current user.
 
-    return <ProfileTab isDark={isDark} onLogout={handleLogout} />;
+    let userPosts: any[] = [];
+    if (profile) {
+        userPosts = await getUserPosts(profile.id);
+    }
+
+    return <ProfileTab initialProfile={profile} initialPosts={userPosts} />;
 }
