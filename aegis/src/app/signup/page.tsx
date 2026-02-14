@@ -11,9 +11,12 @@ const Antigravity = dynamic(() => import('../../components/AntigravityInteractiv
   loading: () => <div className="absolute inset-0 z-0 bg-transparent" />,
 });
 
+import { useSearchParams } from 'next/navigation';
 import { useAppContext } from '@/components/AppProvider';
 
 export default function SignUpPage() {
+  const searchParams = useSearchParams();
+  const message = searchParams.get('message');
   const { isDark, toggleTheme } = useAppContext();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -93,6 +96,11 @@ export default function SignUpPage() {
 
         {/* Signup Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
+          {message && (
+            <div className={`p-4 rounded-xl text-center text-sm font-bold ${isDark ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-red-100 text-red-600 border border-red-200'}`}>
+              {decodeURIComponent(message)}
+            </div>
+          )}
           <div className={`p-8 rounded-[2.5rem] border backdrop-blur-3xl transition-all duration-500 ${isDark ? 'bg-white/5 border-white/10 shadow-2xl' : 'bg-white border-black/10 shadow-xl'
             }`}>
             {/* Full Name */}
