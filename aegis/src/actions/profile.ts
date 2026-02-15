@@ -90,13 +90,12 @@ export async function uploadAvatar(formData: FormData) {
     if (!file) return { error: 'No file uploaded' };
 
     const fileExt = file.name.split('.').pop();
-    const filePath = `${user.id}/avatar.${fileExt}`; // Overwrite existing avatar
+    const fileName = `avatar_${user.id}_${Date.now()}.${fileExt}`;
+    const filePath = fileName;
 
     const { error: uploadError } = await supabase.storage
-        .from('avatars') // Assuming bucket name, default is 'avatars' often. I should check if it exists or use 'posts' which I know exists? I saw 'posts' earlier. Better to use 'avatars' or 'profiles' if they exist. I'll guess 'avatars' first or 'images'.
-        // Wait, I saw 'post_images' in feed actions? No, 'posts' bucket.
-        // I'll try 'avatars'.
-        .upload(filePath, file, { upsert: true });
+        .from('posts') // Changed from 'avatars' to 'posts'
+        .upload(filePath, file);
 
     if (uploadError) {
         console.error('Error uploading avatar:', uploadError);
@@ -104,7 +103,7 @@ export async function uploadAvatar(formData: FormData) {
     }
 
     const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
+        .from('posts')
         .getPublicUrl(filePath);
 
     // Update profile with new avatar URL
@@ -114,9 +113,56 @@ export async function uploadAvatar(formData: FormData) {
         .eq('id', user.id);
 
     if (updateError) {
-        return { error: 'Failed to update profile avatar' };
+        console.error('Error updating profile:', updateError);
+        return { error: 'Failed to update profile' };
     }
 
     revalidatePath('/profile');
     return { success: true, avatarUrl: publicUrl };
+}
+export async function uploadGroupLogo(conversationId: string, formData: FormData) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'Not authenticated' };
+
+    const file = formData.get('logo') as File;
+    if (!file) return { error: 'No file uploaded' };
+
+    const fileExt = file.name.split('.').pop();
+    const fileName = `group_logo_${conversationId}_${Date.now()}.${fileExt}`;
+    const filePath = fileName;
+
+    const { error: uploadError } = await supabase.storage
+        .from('posts')
+        .upload(filePath, file);
+
+    if (uploadError) {
+        console.error('Error uploading group logo:', uploadError);
+        return { error: 'Failed to upload group logo' };
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+        .from('posts')
+        .getPublicUrl(filePath);
+
+    return { success: true, logoUrl: publicUrl };
+}
+
+export async function removeAvatar() {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'Not authenticated' };
+
+    const { error } = await supabase
+        .from('profiles')
+        .update({ avatar_url: null })
+        .eq('id', user.id);
+
+    if (error) {
+        console.error('Error removing avatar:', error);
+        return { error: 'Failed to remove avatar' };
+    }
+
+    revalidatePath('/profile');
+    return { success: true };
 }

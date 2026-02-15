@@ -10,7 +10,7 @@ export async function getNetworkUsers() {
 
     let query = supabase
         .from('profiles')
-        .select('*')
+        .select('*, followers:follows!following_id(count)')
         .neq('role', 'admin');
 
     if (user) {
@@ -25,33 +25,24 @@ export async function getNetworkUsers() {
     }
 
     // Check if current user is following each profile
+    let followingIds = new Set();
     if (user) {
         const { data: follows } = await supabase
             .from('follows')
             .select('following_id')
             .eq('follower_id', user.id);
 
-        const followingIds = new Set(follows?.map(f => f.following_id));
-
-        return profiles.map(profile => ({
-            id: profile.id,
-            name: profile.full_name || 'Anonymous Researcher',
-            role: profile.field_of_study || profile.role || 'Researcher',
-            avatar: profile.avatar_url || getInitials(profile.full_name),
-            following: followingIds.has(profile.id),
-            achievements: Math.floor(Math.random() * 20) + 1, // Mock
-            online: false
-        }));
+        followingIds = new Set(follows?.map(f => f.following_id));
     }
 
     return profiles.map(profile => ({
         id: profile.id,
-        name: profile.full_name || 'Anonymous Researcher',
-        role: profile.field_of_study || profile.role || 'Researcher',
+        name: profile.handle ? `@${profile.handle}` : profile.full_name || 'Anonymous',
+        role: profile.university || profile.reputation_score + ' Reputation',
         avatar: profile.avatar_url || getInitials(profile.full_name),
-        following: false,
-        achievements: Math.floor(Math.random() * 20) + 1,
-        online: false
+        following: followingIds.has(profile.id),
+        followers: profile.followers?.[0]?.count || 0,
+        online: profile.is_online || false
     }));
 }
 

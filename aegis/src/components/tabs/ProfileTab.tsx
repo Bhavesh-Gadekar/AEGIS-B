@@ -13,6 +13,7 @@ import {
   Heart,
   MessageCircle,
   Camera,
+  X,
   Briefcase,
   Shield, // Added Shield
   Sparkles // Added Sparkles
@@ -58,19 +59,86 @@ const ProfileTab: React.FC<ProfileTabProps> = ({ initialProfile, initialPosts })
 
         <div className="relative flex flex-col items-center text-center z-10">
           {/* Avatar */}
-          <div className="relative mb-6">
-            <div className="p-1.5 rounded-full bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 shadow-xl">
-              <div className={`w-32 h-32 rounded-full flex items-center justify-center text-4xl font-black border-4 overflow-hidden ${isDark ? 'border-black bg-black text-white' : 'border-white bg-white text-black'}`}>
+          <div className="relative mb-6 group cursor-pointer">
+            <div className="p-1.5 rounded-full bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 shadow-xl relative">
+              <div className={`w-32 h-32 rounded-full flex items-center justify-center text-4xl font-black border-4 overflow-hidden relative ${isDark ? 'border-black bg-black text-white' : 'border-white bg-white text-black'}`}>
                 {avatar_url ? (
                   <img src={avatar_url} alt={full_name} className="w-full h-full object-cover" />
                 ) : (
                   full_name?.[0] || '?'
                 )}
+
+                {/* Hover Overlay with Actions */}
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-4 transition-opacity duration-300 z-20">
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      document.getElementById('avatar-upload')?.click();
+                    }}
+                    className="p-2 bg-white/20 hover:bg-white/30 rounded-full cursor-pointer transition-colors"
+                    title="Change Photo">
+                    <Camera className="w-5 h-5 text-white" />
+                  </div>
+
+                  {avatar_url && (
+                    <div
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (confirm('Remove profile picture?')) {
+                          try {
+                            const { removeAvatar } = await import('@/actions/profile');
+                            await removeAvatar();
+                            window.location.reload();
+                          } catch (err: any) {
+                            alert(err.message);
+                          }
+                        }
+                      }}
+                      className="p-2 bg-red-500/80 hover:bg-red-600 rounded-full cursor-pointer transition-colors"
+                      title="Remove Photo">
+                      <X className="w-5 h-5 text-white" />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-            <div className="absolute bottom-2 right-2 bg-blue-500 p-1.5 rounded-full border-4 border-inherit text-white shadow-lg">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
+
+            <input
+              id="avatar-upload"
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+
+                // 5MB limit
+                if (file.size > 5 * 1024 * 1024) {
+                  alert("File is too large. Please choose an image under 5MB.");
+                  return;
+                }
+
+                const formData = new FormData();
+                formData.append('avatar', file);
+
+                try {
+                  // Dynamically import to avoid server-client issues if action isn't fully compatible
+                  // But standard server actions should work.
+                  const { uploadAvatar } = await import('@/actions/profile');
+                  const result = await uploadAvatar(formData);
+                  if (result.error) {
+                    alert(result.error);
+                  } else {
+                    // Optimistic update or refresh
+                    window.location.reload();
+                  }
+                } catch (error) {
+                  console.error('Upload failed', error);
+                }
+              }}
+            />
+
+
           </div>
 
           {/* Name & Bio */}

@@ -9,7 +9,7 @@ interface User {
   role: string;
   avatar: string;
   following: boolean;
-  achievements: number;
+  followers: number;
   online: boolean;
 }
 
@@ -67,7 +67,7 @@ const NetworkTab: React.FC<NetworkTabProps> = ({ isDark, users, toggleFollow }) 
                     <CheckCircle2 className="w-4 h-4 text-indigo-500" />
                   </div>
                   <p className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.15em]">{user.role}</p>
-                  <p className="text-[10px] text-indigo-500 font-bold uppercase mt-1.5 opacity-80">{user.achievements} Badges • 1.2k Scholars</p>
+                  <p className="text-[10px] text-indigo-500 font-bold uppercase mt-1.5 opacity-80">{user.followers} Followers</p>
                 </div>
               </div>
 

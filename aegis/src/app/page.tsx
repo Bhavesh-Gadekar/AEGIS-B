@@ -20,7 +20,7 @@ export default function Home() {
   const { isDark } = useAppContext();
 
   return (
-    <div className="relative min-h-screen flex flex-col items-center justify-center text-center px-4 overflow-hidden pt-24 md:pt-0">
+    <div className="relative w-full min-h-screen flex flex-col items-center justify-center text-center px-4 overflow-hidden pt-24 md:pt-0">
       <Antigravity
         count={300}
         magnetRadius={5}
@@ -31,6 +31,8 @@ export default function Home() {
         color={isDark ? "#ffffff" : "#5227FF"}
         autoAnimate
       />
+
+
 
       <div className="max-w-5xl z-20">
         <div className={`inline-flex items-center gap-2 px-5 py-2 rounded-full border mb-10 backdrop-blur-sm group cursor-pointer transition-all ${isDark ? 'bg-white/5 border-white/10 text-white hover:bg-white/10' : 'bg-black/5 border-black/10 text-black hover:bg-black/10'
