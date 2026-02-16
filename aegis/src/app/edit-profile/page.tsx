@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { ArrowLeft, Save, Upload, User, Mail, Briefcase, FileText } from 'lucide-react';
+import { ArrowLeft, Save, Upload, User, Mail, Briefcase, FileText, Loader2, Link as LinkIcon, GraduationCap } from 'lucide-react';
+import { getProfile, updateProfile, uploadAvatar } from '@/actions/profile';
+import { toast } from 'sonner';
 
 const Antigravity = dynamic(() => import('../../components/AntigravityInteractive'), {
     ssr: false,
@@ -14,30 +16,89 @@ export default function EditProfilePage() {
     const router = useRouter();
     const [isDark, setIsDark] = useState(true);
     const [loading, setLoading] = useState(false);
+    const [fetching, setFetching] = useState(true);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [formData, setFormData] = useState({
-        name: 'Jaimil Patel',
-        handle: '@jaImIl',
-        role: 'Lead Architect @ AEGIS',
-        bio: 'Building the future of academic guarding.\nPassionate about decentralized systems and zero-knowledge proofs.',
-        email: 'jaimil@aegis.io',
-        website: 'aegis.io/research'
+        name: '',
+        handle: '',
+        university: '',
+        bio: '',
+        email: '', // Read-only mostly? Or editable?
+        // website: '', // Removed from schema
+        avatar_url: ''
     });
+
+    useEffect(() => {
+        const loadProfile = async () => {
+            const profile = await getProfile();
+            if (profile) {
+                setFormData({
+                    name: profile.full_name || '',
+                    handle: profile.handle || '',
+                    university: profile.university || '',
+                    bio: profile.bio || '',
+                    email: profile.email || '',
+                    avatar_url: profile.avatar_url || ''
+                });
+            }
+            setFetching(false);
+        };
+        loadProfile();
+    }, []);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleAvatarClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Optimistic preview? Or loading state?
+        const toastId = toast.loading('Uploading avatar...');
+
+        const form = new FormData();
+        form.append('avatar', file);
+
+        const result = await uploadAvatar(form);
+
+        if (result.error) {
+            toast.error(result.error, { id: toastId });
+        } else {
+            toast.success('Avatar updated!', { id: toastId });
+            setFormData(prev => ({ ...prev, avatar_url: result.avatarUrl || '' }));
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-        // Simulate API call
-        setTimeout(() => {
-            setLoading(false);
-            router.push('/?tab=profile');
-        }, 1000);
+
+        const result = await updateProfile(formData);
+
+        if (result.error) {
+            toast.error(result.error);
+        } else {
+            toast.success('Profile updated successfully');
+            router.push('/profile'); // Redirect to profile
+            router.refresh();
+        }
+        setLoading(false);
     };
+
+    if (fetching) {
+        return (
+            <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#050505] text-white' : 'bg-[#fafafa] text-black'}`}>
+                <Loader2 className="w-8 h-8 animate-spin" />
+            </div>
+        );
+    }
 
     return (
         <div className={`min-h-screen relative transition-colors duration-700 ${isDark ? 'bg-[#050505] text-white' : 'bg-[#fafafa] text-black'}`}>
@@ -57,7 +118,7 @@ export default function EditProfilePage() {
                 {/* Header */}
                 <div className="mb-12">
                     <button
-                        onClick={() => router.push('/?tab=profile')}
+                        onClick={() => router.push('/profile')}
                         className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest mb-8 transition-colors ${isDark ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-black/5 hover:bg-black/10 text-black'}`}
                     >
                         <ArrowLeft className="w-4 h-4" /> Back to Profile
@@ -73,9 +134,20 @@ export default function EditProfilePage() {
 
                         {/* Avatar Section */}
                         <div className="flex flex-col items-center gap-4 mb-8">
-                            <div className="relative group cursor-pointer">
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleFileChange}
+                                accept="image/*"
+                                className="hidden"
+                            />
+                            <div onClick={handleAvatarClick} className="relative group cursor-pointer">
                                 <div className={`w-32 h-32 rounded-full flex items-center justify-center text-4xl font-black border-4 overflow-hidden ${isDark ? 'border-black bg-black text-white' : 'border-white bg-white text-black'}`}>
-                                    JP
+                                    {formData.avatar_url ? (
+                                        <img src={formData.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                                    ) : (
+                                        formData.name?.[0] || '?'
+                                    )}
                                 </div>
                                 <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                     <Upload className="w-8 h-8 text-white" />
@@ -95,6 +167,7 @@ export default function EditProfilePage() {
                                         value={formData.name}
                                         onChange={handleChange}
                                         className="bg-transparent border-none outline-none text-sm font-bold w-full"
+                                        placeholder="Full Name"
                                     />
                                 </div>
                             </div>
@@ -109,21 +182,23 @@ export default function EditProfilePage() {
                                         value={formData.handle}
                                         onChange={handleChange}
                                         className="bg-transparent border-none outline-none text-sm font-bold w-full"
+                                        placeholder="handle"
                                     />
                                 </div>
                             </div>
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest opacity-50 ml-2">Role / Title</label>
+                            <label className="text-[10px] font-black uppercase tracking-widest opacity-50 ml-2">University / Organization</label>
                             <div className={`flex items-center gap-3 p-4 rounded-2xl border transition-all focus-within:ring-2 focus-within:ring-indigo-500/50 ${isDark ? 'bg-black/20 border-white/10' : 'bg-gray-50 border-black/5'}`}>
-                                <Briefcase className="w-4 h-4 opacity-50" />
+                                <GraduationCap className="w-4 h-4 opacity-50" />
                                 <input
                                     type="text"
-                                    name="role"
-                                    value={formData.role}
+                                    name="university"
+                                    value={formData.university}
                                     onChange={handleChange}
                                     className="bg-transparent border-none outline-none text-sm font-bold w-full"
+                                    placeholder="e.g. Stanford University"
                                 />
                             </div>
                         </div>
@@ -138,6 +213,7 @@ export default function EditProfilePage() {
                                     onChange={handleChange}
                                     rows={4}
                                     className="bg-transparent border-none outline-none text-sm font-bold w-full resize-none"
+                                    placeholder="Tell the network about your research interests..."
                                 />
                             </div>
                         </div>

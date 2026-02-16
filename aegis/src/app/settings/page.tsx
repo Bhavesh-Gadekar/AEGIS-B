@@ -96,7 +96,7 @@ export default function SettingsPage() {
     ];
 
     return (
-        <div className={`min-h-screen relative flex items-center justify-center p-4 transition-colors duration-700 ${isDark ? 'bg-[#050505] text-white' : 'bg-[#fafafa] text-black'
+        <div className={`pt-10 min-h-screen relative flex items-center justify-center p-4 transition-colors duration-700 ${isDark ? 'bg-[#050505] text-white' : 'bg-[#fafafa] text-black'
             }`}>
             {/* Background */}
             <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
@@ -111,7 +111,7 @@ export default function SettingsPage() {
             </div>
 
             <div className="relative z-10 w-full max-w-2xl py-12">
-                <div className="flex items-center gap-4 mb-10">
+                <div className="flex items-center gap-4 mb-5">
                     <button
                         onClick={() => router.back()}
                         className={`p-3 rounded-full transition-colors ${isDark ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-black/5 hover:bg-black/10 text-black'

@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import {
     ArrowLeft,
     Image as ImageIcon,
@@ -18,25 +18,26 @@ import {
     Camera,
     Loader2
 } from 'lucide-react';
-import { createPost } from '@/actions/feed';
 import { createClient } from '@/utils/supabase/client';
 import { toast } from 'sonner';
 
-const Antigravity = dynamic(() => import('../../components/AntigravityInteractive'), {
+const Antigravity = dynamic(() => import('../../../components/AntigravityInteractive'), {
     ssr: false,
     loading: () => <div className="absolute inset-0 z-0 bg-transparent" />,
 });
 
-
-
-export default function CreatePostPage() {
+export default function EditPostPage() {
     const router = useRouter();
+    const params = useParams();
+    const postId = params.id as string;
+
     const [content, setContent] = useState('');
     const [postType, setPostType] = useState('research');
     const [isDark, setIsDark] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [imageFile, setImageFile] = useState<File | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const cameraInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -47,17 +48,48 @@ export default function CreatePostPage() {
         { id: 'security', label: 'Security Alert', icon: Shield, color: 'red' },
     ];
 
+    useEffect(() => {
+        const fetchPost = async () => {
+            const supabase = createClient();
+            const { data: post, error } = await supabase
+                .from('posts')
+                .select('*')
+                .eq('id', postId)
+                .single();
+
+            if (error) {
+                console.error('Error fetching post:', error);
+                toast.error('Failed to load post.');
+                router.push('/feed');
+                return;
+            }
+
+            if (post) {
+                setContent(post.content);
+                setPostType(post.type);
+                if (post.image_url) {
+                    setSelectedImage(post.image_url);
+                }
+            }
+            setIsLoading(false);
+        };
+
+        if (postId) {
+            fetchPost();
+        }
+    }, [postId, router]);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!content.trim() && !imageFile) return;
+        if (!content.trim() && !imageFile && !selectedImage) return;
 
         setIsSubmitting(true);
         try {
-            let imageUrl = undefined;
+            const supabase = createClient();
+            let imageUrl = selectedImage;
 
             if (imageFile) {
-                const supabase = createClient();
                 const fileExt = imageFile.name.split('.').pop();
                 const fileName = `${self.crypto.randomUUID()}.${fileExt}`;
                 const filePath = `${fileName}`;
@@ -77,21 +109,28 @@ export default function CreatePostPage() {
                 imageUrl = publicUrl;
             }
 
-            const result = await createPost(content, postType, imageUrl);
+            const { error: updateError } = await supabase
+                .from('posts')
+                .update({
+                    content,
+                    type: postType,
+                    image_url: imageUrl
+                })
+                .eq('id', postId);
 
-            if (result?.error) {
-                toast.error(result.error);
-            } else {
-                toast.success('Post created successfully!');
-                router.push('/feed');
+            if (updateError) {
+                throw updateError;
             }
+
+            toast.success('Post updated successfully!');
+            router.push('/feed');
+            router.refresh(); // Ensure feed updates
         } catch (error: any) {
-            console.error('Failed to create post:', error);
-            // Handle specific Supabase "Payload too large" or "Object exceeded size" errors
+            console.error('Failed to update post:', error);
             if (error.message && error.message.includes('exceeded the maximum allowed size')) {
                 toast.error('Image is too large. Please select a smaller image (under 5MB).');
             } else {
-                toast.error('Failed to create post. Please try again.');
+                toast.error('Failed to update post. Please try again.');
             }
         } finally {
             setIsSubmitting(false);
@@ -101,7 +140,6 @@ export default function CreatePostPage() {
     const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            // Client-sode validation for 5MB limit
             if (file.size > 5 * 1024 * 1024) {
                 toast.error('File size exceeds 5MB limit.');
                 return;
@@ -115,8 +153,16 @@ export default function CreatePostPage() {
         }
     };
 
+    if (isLoading) {
+        return (
+            <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#050505] text-white' : 'bg-[#fafafa] text-black'}`}>
+                <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+            </div>
+        );
+    }
+
     return (
-        <div className={`min-h-screen relative flex items-center justify-center p-4 transition-colors duration-700 ${isDark ? 'bg-[#050505] text-white' : 'bg-[#fafafa] text-black'
+        <div className={`pt-20 min-h-screen relative flex items-center justify-center p-4 transition-colors duration-700 ${isDark ? 'bg-[#050505] text-white' : 'bg-[#fafafa] text-black'
             }`}>
             {/* Background */}
             <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
@@ -142,7 +188,7 @@ export default function CreatePostPage() {
                         >
                             <ArrowLeft className="w-5 h-5" />
                         </button>
-                        <h1 className="text-lg font-black uppercase tracking-widest">Create Post</h1>
+                        <h1 className="text-lg font-black uppercase tracking-widest">Edit Post</h1>
                         <div className="w-11" /> {/* Spacer for centering */}
                     </div>
 
@@ -258,12 +304,12 @@ export default function CreatePostPage() {
                             >
                                 {isSubmitting ? (
                                     <>
-                                        <span>Posting...</span>
+                                        <span>Saving...</span>
                                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                     </>
                                 ) : (
                                     <>
-                                        <span>Post</span>
+                                        <span>Update</span>
                                         <Send className="w-3.5 h-3.5" />
                                     </>
                                 )}

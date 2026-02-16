@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { Sun, Moon, Bell, User, ShieldAlert } from 'lucide-react';
+import { Sun, Moon, Bell, User } from 'lucide-react';
 import Link from 'next/link';
 import AegisLogo from './AegisLogo';
 import { useAppContext } from '../AppProvider';
@@ -31,29 +31,19 @@ const Header: React.FC = () => {
                     {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-400" />}
                 </button>
 
-                <div className="flex items-center gap-4">
-                    <div className="hidden sm:block relative cursor-pointer group">
-                        <Bell className="w-5 h-5 text-gray-400 group-hover:text-indigo-500 transition-colors" />
-                        <div className="absolute top-0 right-0 w-2 h-2 bg-indigo-500 rounded-full border-2 border-inherit" />
-                    </div>
-                    <Link
-                        href="/admin"
-                        className={`w-10 h-10 md:w-12 md:h-12 rounded-[1.25rem] border flex items-center justify-center cursor-pointer transition-all hover:scale-105 active:scale-95 ${pathname === '/admin'
-                            ? (isDark ? 'bg-indigo-500 border-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.5)]' : 'bg-black border-black')
-                            : (isDark ? 'border-white/10 bg-white/5' : 'border-black/10 bg-black/5 shadow-sm')
-                            }`}>
-                        <ShieldAlert className={`w-5 h-5 md:w-6 md:h-6 ${pathname === '/admin' ? 'text-white' : 'text-indigo-500'}`} />
-                    </Link>
-
-                    <Link
-                        href="/profile"
-                        className={`w-10 h-10 md:w-12 md:h-12 rounded-[1.25rem] border flex items-center justify-center cursor-pointer transition-all hover:scale-105 active:scale-95 ${isProfileActive
-                            ? (isDark ? 'bg-indigo-500 border-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.5)]' : 'bg-black border-black')
-                            : (isDark ? 'border-white/10 bg-white/5' : 'border-black/10 bg-black/5 shadow-sm')
-                            }`}>
-                        <User className={`w-5 h-5 md:w-6 md:h-6 ${isProfileActive ? 'text-white' : ''}`} />
-                    </Link>
+                <div className="hidden sm:block relative cursor-pointer group">
+                    <Bell className="w-5 h-5 text-gray-400 group-hover:text-indigo-500 transition-colors" />
+                    <div className="absolute top-0 right-0 w-2 h-2 bg-indigo-500 rounded-full border-2 border-inherit" />
                 </div>
+
+                <Link
+                    href="/profile"
+                    className={`w-10 h-10 md:w-12 md:h-12 rounded-[1.25rem] border flex items-center justify-center cursor-pointer transition-all hover:scale-105 active:scale-95 ${isProfileActive
+                        ? (isDark ? 'bg-indigo-500 border-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.5)]' : 'bg-black border-black')
+                        : (isDark ? 'border-white/10 bg-white/5' : 'border-black/10 bg-black/5 shadow-sm')
+                        }`}>
+                    <User className={`w-5 h-5 md:w-6 md:h-6 ${isProfileActive ? 'text-white' : ''}`} />
+                </Link>
             </div>
         </header>
     );

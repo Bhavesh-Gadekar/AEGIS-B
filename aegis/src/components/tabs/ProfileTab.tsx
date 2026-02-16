@@ -18,29 +18,33 @@ import {
   Sparkles // Added Sparkles
 } from 'lucide-react';
 
+import { useAppContext } from '@/components/AppProvider';
+import { logout } from '@/actions/auth';
+
 interface ProfileTabProps {
-  isDark: boolean;
-  onLogout: () => void;
+  initialProfile: any;
+  initialPosts: any[];
 }
 
-const ProfileTab: React.FC<ProfileTabProps> = ({ isDark, onLogout }) => {
+const ProfileTab: React.FC<ProfileTabProps> = ({ initialProfile, initialPosts }) => {
+  const { isDark } = useAppContext();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'posts' | 'resume'>('posts');
 
-  const stats = [
-    { label: 'Posts', value: '18' },
-    { label: 'Followers', value: '1.2k' },
-    { label: 'Following', value: '482' },
-  ];
+  const handleLogout = async () => {
+    await logout();
+  };
 
-  // Enhanced posts data with more context matching the academic theme
-  const posts = [
-    { id: 1, type: 'research', title: 'Zero-Knowledge Proofs', likes: 124, comments: 18 },
-    { id: 2, type: 'certificate', title: 'Advanced Cryptography', likes: 89, comments: 12 },
-    { id: 3, type: 'media', title: 'Conference Demo', likes: 256, comments: 42 },
-    { id: 4, type: 'analysis', title: 'Network Security', likes: 167, comments: 24 },
-    { id: 5, type: 'research', title: 'DeFi Protocols', likes: 142, comments: 15 },
-    { id: 6, type: 'media', title: 'Lab Setup', likes: 98, comments: 8 },
+  if (!initialProfile) {
+    return <div className="text-center pt-32">Please log in to view profile.</div>;
+  }
+
+  const { full_name, handle, university, bio, avatar_url, email, stats: profileStats } = initialProfile;
+
+  const stats = [
+    { label: 'Posts', value: initialPosts.length.toString() },
+    { label: 'Followers', value: profileStats?.followers?.toString() || '0' },
+    { label: 'Following', value: profileStats?.following?.toString() || '0' },
   ];
 
   return (
@@ -56,8 +60,12 @@ const ProfileTab: React.FC<ProfileTabProps> = ({ isDark, onLogout }) => {
           {/* Avatar */}
           <div className="relative mb-6">
             <div className="p-1.5 rounded-full bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 shadow-xl">
-              <div className={`w-32 h-32 rounded-full flex items-center justify-center text-4xl font-black border-4 ${isDark ? 'border-black bg-black text-white' : 'border-white bg-white text-black'}`}>
-                JP
+              <div className={`w-32 h-32 rounded-full flex items-center justify-center text-4xl font-black border-4 overflow-hidden ${isDark ? 'border-black bg-black text-white' : 'border-white bg-white text-black'}`}>
+                {avatar_url ? (
+                  <img src={avatar_url} alt={full_name} className="w-full h-full object-cover" />
+                ) : (
+                  full_name?.[0] || '?'
+                )}
               </div>
             </div>
             <div className="absolute bottom-2 right-2 bg-blue-500 p-1.5 rounded-full border-4 border-inherit text-white shadow-lg">
@@ -66,17 +74,18 @@ const ProfileTab: React.FC<ProfileTabProps> = ({ isDark, onLogout }) => {
           </div>
 
           {/* Name & Bio */}
-          <h1 className="text-3xl md:text-4xl font-black mb-2 tracking-tight">Jaimil Patel</h1>
-          <p className="text-sm font-bold opacity-50 uppercase tracking-widest mb-6">Lead Architect @ AEGIS</p>
+          <h1 className="text-3xl md:text-4xl font-black mb-2 tracking-tight">{full_name}</h1>
+          <p className="text-sm font-bold opacity-50 uppercase tracking-widest mb-6">{university || 'Academic'}</p>
 
-          <p className={`max-w-lg mx-auto text-base leading-relaxed mb-8 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-            Building the future of academic guarding. <br />
-            Passionate about decentralized systems and zero-knowledge proofs.
+          <p className={`max-w-lg mx-auto text-base leading-relaxed mb-8 whitespace-pre-line ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+            {bio || 'No bio yet.'}
           </p>
 
-          <a href="#" className="inline-flex items-center gap-2 text-indigo-500 font-bold hover:underline mb-10 bg-indigo-500/10 px-4 py-2 rounded-full transition-colors hover:bg-indigo-500/20">
-            <ArrowUpRight className="w-4 h-4" /> aegis.io/research
-          </a>
+          {handle && (
+            <a href="#" className="inline-flex items-center gap-2 text-indigo-500 font-bold hover:underline mb-10 bg-indigo-500/10 px-4 py-2 rounded-full transition-colors hover:bg-indigo-500/20">
+              <ArrowUpRight className="w-4 h-4" /> {handle}
+            </a>
+          )}
 
           {/* Stats Row */}
           <div className="flex items-center gap-8 md:gap-16 mb-10 px-8 py-4 rounded-2xl border backdrop-blur-sm bg-white/5 border-white/10">
@@ -102,7 +111,7 @@ const ProfileTab: React.FC<ProfileTabProps> = ({ isDark, onLogout }) => {
               <Settings className="w-5 h-5" />
             </button>
             <button
-              onClick={onLogout}
+              onClick={handleLogout}
               className="flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-bold transition-all transform active:scale-95 bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20"
             >
               <LogOut className="w-4 h-4" />
@@ -140,22 +149,30 @@ const ProfileTab: React.FC<ProfileTabProps> = ({ isDark, onLogout }) => {
       <div className="min-h-[300px] animate-in slide-in-from-bottom-4 fade-in duration-500">
         {activeTab === 'posts' && (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
-            {posts.map((post) => (
+            {initialPosts.map((post) => (
               <div key={post.id} className={`aspect-square relative group cursor-pointer overflow-hidden rounded-[2rem] border transition-all duration-500 hover:scale-[1.02] ${isDark ? 'bg-white/[0.02] border-white/10 hover:border-indigo-500/50 hover:shadow-2xl hover:shadow-indigo-500/10' : 'bg-white border-black/5 hover:border-indigo-500/30 hover:shadow-xl'
                 }`}>
                 {/* Card Content */}
-                <div className={`absolute inset-0 flex flex-col items-center justify-center gap-4 transition-opacity duration-300 group-hover:opacity-20`}>
-                  {post.type === 'research' && <FileText className={`w-8 h-8 opacity-40 ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`} />}
-                  {post.type === 'certificate' && <Shield className={`w-8 h-8 opacity-40 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />}
-                  {post.type === 'media' && <Camera className={`w-8 h-8 opacity-40 ${isDark ? 'text-pink-400' : 'text-pink-600'}`} />}
-                  {post.type === 'analysis' && <Brain className={`w-8 h-8 opacity-40 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />}
-                  <span className="text-[10px] font-black uppercase tracking-widest opacity-30 text-center px-4">
-                    {post.title}
-                  </span>
-                </div>
+                {post.imageUrl ? (
+                  <img src={post.imageUrl} alt="Post content" className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:opacity-20 transition-opacity" />
+                ) : (
+                  <div className={`absolute inset-0 flex flex-col items-center justify-center gap-4 transition-opacity duration-300 group-hover:opacity-20`}>
+                    {post.type === 'research' && <FileText className={`w-8 h-8 opacity-40 ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`} />}
+                    {post.type === 'certificate' && <Shield className={`w-8 h-8 opacity-40 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />}
+                    {post.type === 'media' && <Camera className={`w-8 h-8 opacity-40 ${isDark ? 'text-pink-400' : 'text-pink-600'}`} />}
+                    {post.type === 'analysis' && <Brain className={`w-8 h-8 opacity-40 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />}
+                    <span className="text-[10px] font-black uppercase tracking-widest opacity-30 text-center px-4 line-clamp-2">
+                      {post.content}
+                    </span>
+                  </div>
+                )}
+
 
                 {/* Hover Overlay */}
-                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center gap-4 backdrop-blur-[2px]">
+                <div
+                  onClick={() => router.push(`/edit-post/${post.id}`)}
+                  className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-center gap-4 backdrop-blur-[2px]"
+                >
                   <div className="flex items-center gap-6">
                     <div className="flex items-center gap-2 text-white font-bold">
                       <Heart className="w-5 h-5 fill-white" />
@@ -167,15 +184,17 @@ const ProfileTab: React.FC<ProfileTabProps> = ({ isDark, onLogout }) => {
                     </div>
                   </div>
                   <span className="px-4 py-1.5 rounded-full bg-white/10 text-white text-[9px] font-black uppercase tracking-widest border border-white/20">
-                    View {post.type}
+                    Edit
                   </span>
                 </div>
               </div>
             ))}
 
             {/* New Post Placeholder */}
-            <div className={`aspect-square flex flex-col items-center justify-center gap-3 border border-dashed rounded-[2rem] cursor-pointer transition-all duration-300 group ${isDark ? 'border-white/10 hover:border-white/30 hover:bg-white/5' : 'border-black/10 hover:border-black/30 hover:bg-black/5'
-              }`}>
+            <div
+              onClick={() => router.push('/create-post')}
+              className={`aspect-square flex flex-col items-center justify-center gap-3 border border-dashed rounded-[2rem] cursor-pointer transition-all duration-300 group ${isDark ? 'border-white/10 hover:border-white/30 hover:bg-white/5' : 'border-black/10 hover:border-black/30 hover:bg-black/5'
+                }`}>
               <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-500 text-indigo-500 group-hover:scale-110 ${isDark ? 'bg-indigo-500/20' : 'bg-indigo-50'
                 }`}>
                 <Camera className="w-5 h-5" />
