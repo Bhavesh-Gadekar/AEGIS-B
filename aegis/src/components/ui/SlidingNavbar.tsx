@@ -19,8 +19,14 @@ const SlidingNavbar: React.FC<SlidingNavbarProps> = ({ isDark }) => {
         { id: '/quiz', label: 'Quiz' },
     ];
 
+    // Determine active index based on pathname
+    // If pathname matches existing tab id, use that. Otherwise default to -1 or Home if exact match
+    const activeIndex = tabs.findIndex(t => t.id === pathname);
+
     const [isVisible, setIsVisible] = useState(true);
+    const [isAnimating, setIsAnimating] = useState(false);
     const lastScrollY = useRef(0);
+    const prevIndex = useRef(activeIndex);
 
     useEffect(() => {
         const handleScroll = () => {
@@ -39,21 +45,39 @@ const SlidingNavbar: React.FC<SlidingNavbarProps> = ({ isDark }) => {
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
-    // Determine active index based on pathname
-    // If pathname matches existing tab id, use that. Otherwise default to -1 or Home if exact match
-    const activeIndex = tabs.findIndex(t => t.id === pathname);
+    useEffect(() => {
+        if (prevIndex.current !== activeIndex) {
+            setIsAnimating(true);
+            const timer = setTimeout(() => {
+                setIsAnimating(false);
+            }, 300); // Duration of the stretch effect (shorter than total transition)
+            prevIndex.current = activeIndex;
+            return () => clearTimeout(timer);
+        }
+    }, [activeIndex]);
 
     return (
-        <div className={`fixed top-20 md:top-6 left-1/2 -translate-x-1/2 z-[70] px-1 transition-all duration-500 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-10 pointer-events-none'}`}>
-            <div className={`relative flex items-center p-1.5 backdrop-blur-3xl border rounded-full transition-all duration-500 ${isDark ? 'bg-black/80 border-white/20 shadow-2xl shadow-white/10' : 'bg-white/80 border-black/20 shadow-2xl shadow-black/10'
+        <div className={`fixed bottom-8 lg:top-6 lg:bottom-auto left-1/2 -translate-x-1/2 z-[70] px-1 transition-all duration-500 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-24 lg:-translate-y-24 pointer-events-none'}`}>
+            <div className={`relative flex items-center p-1.5 backdrop-blur-2xl backdrop-saturate-150 border rounded-full transition-all duration-500 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] ${isDark
+                ? 'bg-[rgba(20,20,20,0.6)] border-[rgba(255,255,255,0.08)] shadow-[0_8px_32px_0_rgba(0,0,0,0.3)]'
+                : 'bg-[rgba(255,255,255,0.65)] border-[rgba(255,255,255,0.4)] shadow-[0_8px_32px_0_rgba(31,38,135,0.07)]'
                 }`}>
+
+                {/* Active Tab Indicator (Apple-style pill) */}
                 <div
-                    className={`absolute h-[calc(100%-8px)] rounded-full transition-all duration-500 ease-in-out z-0 ${isDark ? 'bg-white shadow-[0_0_15px_rgba(255,255,255,0.3)]' : 'bg-black shadow-[0_4px_12px_rgba(0,0,0,0.2)]'
+                    className={`absolute h-[calc(100%-8px)] rounded-full transition-all duration-300 cubic-bezier(0.4, 0, 0.2, 1) z-0 ${isDark
+                        ? 'bg-[rgba(60,60,60,0.6)] border border-white/5 shadow-[0_2px_12px_rgba(0,0,0,0.5)]'
+                        : 'bg-white border border-black/5 shadow-[0_2px_8px_rgba(0,0,0,0.08)]'
                         }`}
                     style={{
-                        width: `calc(100% / ${tabs.length} - 4px)`,
-                        left: `calc(${activeIndex === -1 ? 0 : activeIndex} * (100% / ${tabs.length}) + 2px)`,
-                        opacity: activeIndex === -1 ? 0 : 1
+                        width: isAnimating
+                            ? `calc(130% / ${tabs.length})`
+                            : `calc(100% / ${tabs.length} - 4px)`,
+                        left: isAnimating
+                            ? `calc(${activeIndex === -1 ? 0 : activeIndex} * (100% / ${tabs.length}) - (15% / ${tabs.length}) + 2px)`
+                            : `calc(${activeIndex === -1 ? 0 : activeIndex} * (100% / ${tabs.length}) + 2px)`,
+                        opacity: activeIndex === -1 ? 0 : 1,
+                        backdropFilter: 'blur(8px)',
                     }}
                 />
 
@@ -61,9 +85,9 @@ const SlidingNavbar: React.FC<SlidingNavbarProps> = ({ isDark }) => {
                     <Link
                         key={tab.id}
                         href={tab.id}
-                        className={`relative z-10 px-2 py-2.5 rounded-full text-[9px] md:text-[10px] font-black uppercase transition-colors duration-300 w-16 md:w-24 text-center truncate ${pathname === tab.id
-                            ? (isDark ? 'text-black' : 'text-white')
-                            : `text-gray-500 hover:${isDark ? 'text-white' : 'text-black'}`
+                        className={`relative z-10 px-2 py-2.5 rounded-full text-[9px] md:text-[10px] font-bold uppercase tracking-wide transition-all duration-300 w-16 md:w-24 text-center truncate ${pathname === tab.id
+                            ? (isDark ? 'text-white drop-shadow-sm' : 'text-black drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]')
+                            : (isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black')
                             }`}
                     >
                         {tab.label}

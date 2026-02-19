@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { ArrowLeft, ChevronRight, ToggleLeft, ToggleRight, Loader2, Shield } from 'lucide-react';
+import { toast } from 'sonner';
 
 const Antigravity = dynamic(() => import('../../../components/AntigravityInteractive'), {
     ssr: false,
@@ -296,6 +297,68 @@ export default function CategorySettingsPage() {
                                 isDark={isDark}
                             />
                         </>
+                    )}
+
+                    {category === 'help' && (
+                        <div className={`p-6 rounded-2xl border ${isDark ? 'bg-white/5 border-white/10' : 'bg-white border-black/5'}`}>
+                            <h2 className="text-xl font-bold mb-4">Contact Support</h2>
+                            <p className={`text-sm mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                Have a question or facing an issue? Send us a message and we'll get back to you shortly.
+                            </p>
+
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                const form = e.target as HTMLFormElement;
+                                const formData = new FormData(form);
+                                const issue = formData.get('issue') as string;
+
+                                if (!issue?.trim()) return;
+
+                                const toastId = toast.loading("Submitting ticket...");
+
+                                try {
+                                    const { createClient } = await import('@/utils/supabase/client');
+                                    const supabase = createClient();
+                                    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+                                    if (userError || !user) throw new Error("Please log in to submit a ticket");
+
+                                    const { error } = await supabase
+                                        .from('reports')
+                                        .insert({
+                                            reporter_id: user.id,
+                                            reason: issue,
+                                            status: 'pending'
+                                        });
+
+                                    if (error) throw error;
+
+                                    toast.success("Ticket submitted successfully!", { id: toastId });
+                                    form.reset();
+
+                                } catch (error: any) {
+                                    console.error(error);
+                                    toast.error(error.message || "Failed to submit ticket", { id: toastId });
+                                }
+                            }}>
+                                <textarea
+                                    name="issue"
+                                    rows={5}
+                                    placeholder="Describe your issue or question here..."
+                                    className={`w-full p-4 rounded-xl mb-4 border outline-none resize-none transition-all focus:ring-2 focus:ring-indigo-500/50 ${isDark
+                                        ? 'bg-black/20 border-white/10 text-white placeholder:text-gray-600'
+                                        : 'bg-gray-50 border-gray-200 text-black placeholder:text-gray-400'
+                                        }`}
+                                    required
+                                />
+                                <button
+                                    type="submit"
+                                    className="w-full py-3 rounded-xl bg-indigo-500 text-white font-bold shadow-lg shadow-indigo-500/30 hover:bg-indigo-600 hover:shadow-indigo-500/50 transition-all active:scale-[0.98]"
+                                >
+                                    Submit Ticket
+                                </button>
+                            </form>
+                        </div>
                     )}
                 </div>
             </div>

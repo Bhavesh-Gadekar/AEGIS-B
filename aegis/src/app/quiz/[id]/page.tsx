@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { ArrowLeft, Trophy, CheckCircle2, Clock, Brain, AlertCircle, Play } from 'lucide-react';
+import { useAppContext } from '../../../components/AppProvider';
 
 const Antigravity = dynamic(() => import('../../../components/AntigravityInteractive'), {
     ssr: false,
@@ -58,7 +59,7 @@ export default function QuizDetailPage() {
     const router = useRouter();
     const params = useParams();
     const id = params.id as string;
-    const [isDark, setIsDark] = useState(true);
+    const { isDark } = useAppContext();
 
     const data = QUIZ_DETAILS[id];
 
@@ -85,7 +86,7 @@ export default function QuizDetailPage() {
 
             <div className="relative z-10 w-full max-w-2xl">
                 <button
-                    onClick={() => router.push('/?tab=quiz')}
+                    onClick={() => router.push('/quiz')}
                     className={`absolute top-0 left-0 p-3 rounded-full transition-colors ${isDark ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-black/5 hover:bg-black/10 text-black'
                         }`}
                 >

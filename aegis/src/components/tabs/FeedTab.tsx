@@ -120,7 +120,7 @@ const FeedItem: React.FC<{ post: Post; isDark: boolean; currentUser: any }> = ({
   };
 
   return (
-    <div className={`p-6 border rounded-[2.5rem] transition-all duration-500 group ${isDark ? 'border-white/5 bg-white/[0.02] hover:bg-white/[0.04]' : 'border-black/5 bg-white shadow-sm hover:bg-gray-50'}`}>
+    <div id={`post-${post.id}`} className={`p-6 border rounded-[2.5rem] transition-all duration-500 group ${isDark ? 'border-white/5 bg-white/[0.02] hover:bg-white/[0.04]' : 'border-black/5 bg-white shadow-sm hover:bg-gray-50'}`}>
       <div className="flex gap-4">
         <div className={`w-12 h-12 rounded-2xl flex-shrink-0 flex items-center justify-center font-bold text-lg relative ${isDark ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}>
           {post.user[0]}
@@ -167,13 +167,10 @@ const FeedItem: React.FC<{ post: Post; isDark: boolean; currentUser: any }> = ({
           </p>
 
           {post.imageUrl && (
-            <div className={`w-full aspect-video rounded-3xl mb-4 overflow-hidden border border-white/10 bg-gradient-to-br transition-transform duration-500 group-hover:scale-[1.01] ${isDark ? 'from-zinc-900 via-indigo-900/10 to-zinc-900' : 'from-zinc-100 via-indigo-50 to-zinc-100'
-              } flex flex-col items-center justify-center gap-3 relative`}>
-              {/* If actual image URL exists, show it */}
-              <img src={post.imageUrl} alt="Post content" className="w-full h-full object-cover absolute inset-0 z-0" />
-
-              {/* Overlay for aesthetic consistency if needed, or remove if raw image is preferred */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent z-10 pointer-events-none" />
+            <div className={`w-full rounded-3xl mb-4 overflow-hidden border border-white/10 bg-gradient-to-br transition-transform duration-500 group-hover:scale-[1.01] ${isDark ? 'from-zinc-900 via-indigo-900/10 to-zinc-900' : 'from-zinc-100 via-indigo-50 to-zinc-100'
+              } flex flex-col items-center justify-center relative`}>
+              {/* Display image at full size without cropping */}
+              <img src={post.imageUrl} alt="Post content" className="w-full h-auto object-contain" />
             </div>
           )}
 
@@ -191,7 +188,25 @@ const FeedItem: React.FC<{ post: Post; isDark: boolean; currentUser: any }> = ({
                 className="flex items-center gap-1.5 hover:text-indigo-500 transition-colors">
                 <MessageSquare className="w-4 h-4" /> <span className="text-xs font-bold">{commentsCount}</span>
               </button>
-              <button className="flex items-center gap-1.5 hover:text-emerald-500 transition-colors ml-auto">
+              <button
+                onClick={async () => {
+                  try {
+                    const shareData = {
+                      title: `Post by ${post.user}`,
+                      text: `"${post.content}" - ${post.user} on AEGIS`,
+                      url: `${window.location.origin}/feed#post-${post.id}`,
+                    };
+                    if (navigator.share && navigator.canShare(shareData)) {
+                      await navigator.share(shareData);
+                    } else {
+                      await navigator.clipboard.writeText(`${shareData.text}\n${shareData.url}`);
+                      toast.success("Post copied to clipboard!");
+                    }
+                  } catch (err) {
+                    // Ignore all errors
+                  }
+                }}
+                className="flex items-center gap-1.5 hover:text-emerald-500 transition-colors ml-auto">
                 <Share2 className="w-4 h-4" />
               </button>
             </div>

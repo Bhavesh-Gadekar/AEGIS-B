@@ -14,7 +14,8 @@ import {
   X,
   CheckCircle2,
   Edit2,
-  Save
+  Save,
+  UserPlus
 } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 import { chatService, Conversation, Message } from '@/services/chat';
@@ -24,7 +25,6 @@ type Profile = Database['public']['Tables']['profiles']['Row'];
 
 interface ChatTabProps {
   isDark: boolean;
-  // Ignoring the passed users prop as we fetch real users now
   users?: any[];
 }
 
@@ -35,7 +35,7 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
-  const [profiles, setProfiles] = useState<Profile[]>([]); // For searching users to chat with
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [isCreatingChat, setIsCreatingChat] = useState(false);
   const [selectedForGroup, setSelectedForGroup] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -46,6 +46,10 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
   const [groupName, setGroupName] = useState("");
   const [groupLogo, setGroupLogo] = useState("");
   const [groupDetails, setGroupDetails] = useState<Record<string, { name?: string, logo?: string }>>({});
+
+  // Add Participants State
+  const [addPeopleQuery, setAddPeopleQuery] = useState("");
+  const [selectedForAdd, setSelectedForAdd] = useState<string[]>([]);
 
   // 1. Fetch Auth User
   useEffect(() => {
@@ -102,7 +106,7 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
 
           if (cError) throw cError;
 
-          // Sort messages to find the last one and extract group info
+          // Sort messages
           const processed = convos.map((c: any) => {
             const sortedMessages = c.messages?.sort((a: any, b: any) =>
               new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -110,7 +114,6 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
 
             let groupName, groupLogo;
             if (c.is_group) {
-              // Find latest group update
               const updateMsg = sortedMessages.find((m: any) => m.content.startsWith('{"type":"system"'));
               if (updateMsg) {
                 try {
@@ -119,18 +122,22 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
                     groupName = data.name;
                     groupLogo = data.logo;
                   }
-                } catch (e) {
-                  // ignore malformed
-                }
+                } catch (e) { }
               }
             }
+
+            // Count unread messages (not sent by current user)
+            const unreadCount = c.messages?.filter((m: any) =>
+              !m.is_read && m.sender_id !== currentUser?.id
+            ).length || 0;
 
             return {
               ...c,
               participants: c.conversation_participants,
               last_message: sortedMessages.find((m: any) => !m.content.startsWith('{"type":"system"')) || sortedMessages[0],
-              groupName, // Derived from history
-              groupLogo
+              groupName,
+              groupLogo,
+              unreadCount
             };
           });
           setConversations(processed);
@@ -140,8 +147,8 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
         const { data: allProfiles } = await supabase
           .from('profiles')
           .select('*')
-          .neq('id', currentUser.id) // Exclude self
-          .eq('role', 'user'); // Filter for users only
+          .neq('id', currentUser.id)
+          .eq('role', 'user');
 
         if (allProfiles) setProfiles(allProfiles);
 
@@ -152,15 +159,30 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
 
     loadData();
 
-    // Realtime subscription for new messages
+    // Realtime subscription for all conversations
     const channel = supabase
       .channel('chat_updates')
       .on('postgres_changes', {
-        event: '*',
+        event: 'INSERT',
         schema: 'public',
-        table: 'messages',
-        filter: `conversation_id=in.(${conversations.map(c => c.id).join(',')})`
+        table: 'messages'
+      }, (payload) => {
+        const newMsg = payload.new as any;
+        // If message is in a different conversation and not sent by me, increment unread
+        if (newMsg.conversation_id !== selectedConversation?.id && newMsg.sender_id !== currentUser?.id) {
+          setConversations(prev => prev.map(c =>
+            c.id === newMsg.conversation_id
+              ? { ...c, unreadCount: ((c as any).unreadCount || 0) + 1 }
+              : c
+          ));
+        }
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'messages'
       }, () => {
+        // Reload data when messages are updated (e.g., marked as read from another device)
         loadData();
       })
       .subscribe();
@@ -182,11 +204,28 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
         .order('created_at', { ascending: true });
 
       if (data) setMessages(data as any);
+
+      // Mark all unread messages as read
+      if (currentUser) {
+        await supabase
+          .from('messages')
+          .update({ is_read: true })
+          .eq('conversation_id', selectedConversation.id)
+          .eq('is_read', false)
+          .neq('sender_id', currentUser.id);
+
+        // Update conversations state to reflect read messages
+        setConversations(prev => prev.map(c =>
+          c.id === selectedConversation.id
+            ? { ...c, unreadCount: 0 }
+            : c
+        ));
+      }
     };
 
     fetchMessages();
 
-    // Subscribe to new messages in this conversation
+    // Subscribe to new messages
     const channel = supabase
       .channel(`conversation:${selectedConversation.id}`)
       .on('postgres_changes', {
@@ -195,7 +234,6 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
         table: 'messages',
         filter: `conversation_id=eq.${selectedConversation.id}`
       }, async (payload) => {
-        // Fetch the sender profile for the new message
         const { data: senderProfile } = await supabase
           .from('profiles')
           .select('*')
@@ -204,6 +242,14 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
 
         const newMessage = { ...payload.new, sender: senderProfile } as Message;
         setMessages(prev => [...prev, newMessage]);
+
+        // Mark as read if not sent by me
+        if (payload.new.sender_id !== currentUser?.id) {
+          await supabase
+            .from('messages')
+            .update({ is_read: true })
+            .eq('id', payload.new.id);
+        }
       })
       .subscribe();
 
@@ -212,11 +258,9 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
     };
   }, [selectedConversation]);
 
-  // Scan messages for group updates
+  // System messages grouping
   useEffect(() => {
     if (!messages.length || !selectedConversation?.is_group) return;
-
-    // Find the last system message with group info
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
       try {
@@ -233,13 +277,10 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
             break;
           }
         }
-      } catch (e) {
-        // ignore
-      }
+      } catch (e) { }
     }
   }, [messages, selectedConversation]);
 
-  // Scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -258,7 +299,6 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
         setNewMessage("");
       }
 
-      // Optimistically update updated_at for conversation list sorting
       setConversations(prev => {
         const updated = prev.map(c =>
           c.id === selectedConversation.id
@@ -294,7 +334,6 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
   const handleCreateChat = async () => {
     if (!currentUser || selectedForGroup.length === 0) return;
 
-    // Check for existing DM
     if (selectedForGroup.length === 1) {
       const targetUserId = selectedForGroup[0];
       const existingDM = conversations.find(c =>
@@ -311,7 +350,6 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
     }
 
     try {
-      // atomic creation using RPC function to bypass RLS race condition
       const { data: conversationId, error: rpcError } = await supabase.rpc('create_conversation_rpc', {
         is_group: selectedForGroup.length > 1,
         participant_ids: [currentUser.id, ...selectedForGroup]
@@ -319,11 +357,8 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
 
       if (rpcError) throw rpcError;
 
-      // Refresh conversations
       setIsCreatingChat(false);
       setSelectedForGroup([]);
-
-      // Trigger reload to fetch the new conversation
       window.location.reload();
 
     } catch (error) {
@@ -339,25 +374,50 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
     }
   };
 
+  const toggleAddUserSelection = (userId: string) => {
+    if (selectedForAdd.includes(userId)) {
+      setSelectedForAdd(prev => prev.filter(id => id !== userId));
+    } else {
+      setSelectedForAdd(prev => [...prev, userId]);
+    }
+  };
+
+  const handleAddParticipants = async () => {
+    if (!selectedConversation || selectedForAdd.length === 0) return;
+    try {
+      const { addParticipants } = await import('@/actions/chat');
+      const { error } = await addParticipants(selectedConversation.id, selectedForAdd);
+
+      if (error) {
+        alert(error);
+      } else {
+        // If successful, send a system message
+        const newNames = profiles
+          .filter(p => selectedForAdd.includes(p.id))
+          .map(p => p.handle || p.full_name)
+          .join(', ');
+
+        await handleSendMessageRaw(`{"type":"system","content":"Added ${newNames} to the chat"}`);
+        window.location.reload();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const getConversationName = (c: Conversation & { groupName?: string }) => {
     if (!currentUser) return "";
-
-    // Check pre-calculated or local cache
     if (c.is_group) {
       if (groupDetails[c.id]?.name) return groupDetails[c.id].name;
       if (c.groupName) return c.groupName;
     }
-
     if (c.is_group) {
-      // Join names of other participants
       const names = c.participants
         .filter((p: any) => p.user_id !== currentUser.id)
         .map((p: any) => p.profiles?.handle ? `@${p.profiles.handle}` : (p.profiles?.full_name || 'Unknown'))
         .join(', ');
       return names || "Group Chat";
     } else {
-      // Find the other person
       const other = c.participants.find((p: any) => p.user_id !== currentUser.id);
       return other?.profiles?.handle ? `@${other.profiles.handle}` : (other?.profiles?.full_name || "User");
     }
@@ -365,14 +425,11 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
 
   const getConversationAvatar = (c: Conversation & { groupLogo?: string }) => {
     if (!currentUser) return "";
-
     if (c.is_group) {
       if (groupDetails[c.id]?.logo) return <img src={groupDetails[c.id].logo} alt="Group" className="w-full h-full object-cover" />;
       if (c.groupLogo) return <img src={c.groupLogo} alt="Group" className="w-full h-full object-cover" />;
     }
-
     if (c.is_group) {
-      // Keep it simple for group defaults
       return <Users className="w-5 h-5" />;
     } else {
       const other = c.participants.find((p: any) => p.user_id !== currentUser.id);
@@ -391,7 +448,6 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
 
         {/* Sidebar */}
         <div className={`w-24 md:w-96 border-r flex flex-col transition-colors ${isDark ? 'border-white/10 bg-black' : 'border-black/5 bg-white'}`}>
-          {/* Sidebar Header */}
           <div className="p-6 md:p-8 flex items-center justify-center md:justify-between">
             <h3 className="hidden md:block font-bold text-xl tracking-tight">
               {currentUser?.handle || "Messages"}
@@ -404,9 +460,7 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
             </div>
           </div>
 
-          {/* User List / Conversation List */}
           <div className="flex-1 overflow-y-auto custom-scrollbar px-2 md:px-4 space-y-2">
-
             {isCreatingChat ? (
               <div className="space-y-4">
                 <p className="px-4 text-xs font-bold opacity-50 uppercase">New Message</p>
@@ -418,7 +472,6 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
                   onChange={e => setSearchQuery(e.target.value)}
                 />
 
-                {/* User Selection List */}
                 {profiles
                   .filter(p => !searchQuery || p.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) || p.handle?.toLowerCase().includes(searchQuery.toLowerCase()))
                   .map(user => (
@@ -461,13 +514,17 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
                     <div className={`w-14 h-14 md:w-14 md:h-14 rounded-full flex items-center justify-center font-bold text-lg overflow-hidden ${isDark ? 'bg-gray-800' : 'bg-gray-200'}`}>
                       {getConversationAvatar(c)}
                     </div>
+                    {(c as any).unreadCount > 0 && (
+                      <div className="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] font-bold rounded-full min-w-[20px] h-[20px] flex items-center justify-center px-1.5 shadow-md">
+                        {(c as any).unreadCount > 99 ? '99+' : (c as any).unreadCount}
+                      </div>
+                    )}
                   </div>
                   <div className="hidden md:block flex-1 min-w-0">
                     <div className="flex justify-between items-baseline">
                       <p className={`text-sm font-semibold truncate ${selectedConversation?.id === c.id ? (isDark ? 'text-white' : 'text-black') : (isDark ? 'text-gray-300' : 'text-gray-700')}`}>
                         {getConversationName(c)}
                       </p>
-                      {/* Time would go here */}
                     </div>
                     <p className="text-xs text-gray-500 truncate mt-0.5">
                       {c.last_message ? (c.last_message.content.startsWith('{"type":"system"') ? 'Group updated' : c.last_message.content) : "No messages yet"}
@@ -476,7 +533,6 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
                 </div>
               ))
             )}
-
             {!isCreatingChat && conversations.length === 0 && (
               <div className="text-center p-8 opacity-50">
                 <p>No conversations yet.</p>
@@ -501,12 +557,6 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
                       <p className="font-bold text-base leading-tight">
                         {getConversationName(selectedConversation)}
                       </p>
-                      {selectedConversation.is_group && (
-                        <Edit2 className="w-4 h-4 cursor-pointer opacity-50 hover:opacity-100" onClick={() => {
-                          setGroupName(getConversationName(selectedConversation) || "");
-                          setIsEditingGroup(true);
-                        }} />
-                      )}
                     </div>
                     {selectedConversation.is_group && (
                       <p className="text-xs text-gray-500 font-medium">{selectedConversation.participants.length} participants</p>
@@ -514,104 +564,130 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
                   </div>
                 </div>
                 <div className="flex items-center gap-6 text-gray-500">
-                  <Info className="w-6 h-6 cursor-pointer hover:text-current transition-colors" />
+                  <Info
+                    className="w-6 h-6 cursor-pointer hover:text-current transition-colors"
+                    onClick={() => {
+                      const conversationData = selectedConversation as any;
+                      setGroupName(getConversationName(selectedConversation) || "");
+                      setGroupLogo(conversationData.groupLogo || "");
+                      setIsEditingGroup(true);
+                      setAddPeopleQuery("");
+                      setSelectedForAdd([]);
+                    }}
+                  />
                 </div>
               </div>
 
-              {/* Edit Group Modal Overlay */}
+              {/* Edit Group / Info Modal */}
               {isEditingGroup && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                  <div className={`p-6 rounded-2xl w-full max-w-sm md:max-w-md ${isDark ? 'bg-zinc-900 border border-white/10' : 'bg-white'} h-[80vh] md:h-auto md:max-h-[85vh] flex flex-col shadow-2xl`}>
-                    <h3 className="text-lg font-bold mb-4 flex-shrink-0">Edit Group Info</h3>
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                  <div className={`w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[70vh] transition-all ${isDark ? 'bg-zinc-950 border border-white/10' : 'bg-white'}`}>
 
-                    <div className="space-y-6 overflow-y-auto custom-scrollbar flex-1 min-h-0 pr-2 pb-2">
-                      {/* Name */}
-                      <div>
-                        <label className="text-xs font-bold uppercase opacity-50 block mb-2">Group Name</label>
-                        <input
-                          type="text"
-                          value={groupName}
-                          onChange={e => setGroupName(e.target.value)}
-                          className="w-full p-3 rounded-xl bg-transparent border border-gray-500/20 focus:border-blue-500 transition-colors"
-                        />
-                      </div>
+                    {/* Header */}
+                    <div className={`p-3 border-b flex items-center justify-between ${isDark ? 'border-white/5 bg-white/5' : 'border-gray-100 bg-gray-50/50'}`}>
+                      <h3 className="font-bold text-base">
+                        {selectedConversation.is_group ? 'Group Settings' : 'Chat Details'}
+                      </h3>
+                      <button
+                        onClick={() => setIsEditingGroup(false)}
+                        className={`p-1.5 rounded-full transition-colors ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
+                      >
+                        <X className="w-4 h-4 opacity-70" />
+                      </button>
+                    </div>
 
-                      {/* Logo */}
-                      <div>
-                        <div className="flex justify-between items-center mb-2">
-                          <label className="text-xs font-bold uppercase opacity-50 block">Group Logo</label>
-                          {groupLogo && (
-                            <span
-                              onClick={() => setGroupLogo("")}
-                              className="text-[10px] text-red-500 font-bold cursor-pointer hover:underline">
-                              Remove Logo
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <div className="w-16 h-16 rounded-full bg-gray-500/10 flex items-center justify-center overflow-hidden relative group cursor-pointer border border-white/10 flex-shrink-0"
-                            onClick={() => document.getElementById('group-logo-upload')?.click()}
-                          >
-                            {groupLogo ? (
-                              <img src={groupLogo} className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="flex flex-col items-center justify-center opacity-50">
-                                <Users className="w-6 h-6 mb-1" />
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6">
+
+                      {/* Group Identity Section */}
+                      {selectedConversation.is_group && (
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="relative group">
+                            <div
+                              onClick={() => document.getElementById('group-logo-upload')?.click()}
+                              className={`w-20 h-20 rounded-full flex items-center justify-center overflow-hidden border-4 cursor-pointer transition-transform group-hover:scale-105 ${isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-gray-100 border-white shadow-sm'}`}
+                            >
+                              {groupLogo ? (
+                                <img src={groupLogo} className="w-full h-full object-cover" />
+                              ) : (
+                                <Users className={`w-8 h-8 ${isDark ? 'text-zinc-700' : 'text-gray-400'}`} />
+                              )}
+
+                              {/* Overlay */}
+                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Camera className="w-6 h-6 text-white/90" />
                               </div>
+                            </div>
+
+                            {/* X Button for Quick Removal */}
+                            {groupLogo && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setGroupLogo("");
+                                }}
+                                className="absolute -top-1 -right-1 z-10 p-1.5 bg-red-500 rounded-full text-white shadow-md hover:bg-red-600 transition-colors"
+                                title="Remove Logo"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
                             )}
+
+                            <input
+                              id="group-logo-upload"
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                if (file.size > 5 * 1024 * 1024) {
+                                  alert("File too large (max 5MB)");
+                                  return;
+                                }
+                                const formData = new FormData();
+                                formData.append('logo', file);
+                                try {
+                                  const { uploadGroupLogo } = await import('@/actions/profile');
+                                  const result = await uploadGroupLogo(selectedConversation.id, formData);
+                                  if (result.logoUrl) setGroupLogo(result.logoUrl);
+                                } catch (e) {
+                                  console.error(e);
+                                }
+                              }}
+                            />
                           </div>
-                          <div className="flex-1 min-w-0">
+
+                          {/* Explicit Text Option for Removal */}
+                          {groupLogo && (
+                            <button
+                              onClick={() => setGroupLogo("")}
+                              className="text-[10px] font-bold text-red-500 hover:text-red-600 hover:underline -mt-2"
+                            >
+                              Remove Photo
+                            </button>
+                          )}
+
+                          <div className="w-full px-8">
                             <input
                               type="text"
-                              value={groupLogo}
-                              onChange={e => setGroupLogo(e.target.value)}
-                              placeholder="Enter URL or upload..."
-                              className="w-full p-3 rounded-xl bg-transparent border border-gray-500/20 text-xs mb-2 truncate"
+                              value={groupName}
+                              onChange={e => setGroupName(e.target.value)}
+                              placeholder="Group Name"
+                              className={`w-full p-2 text-center font-bold text-base bg-transparent border-b focus:border-blue-500 transition-colors focus:outline-none ${isDark ? 'border-zinc-800 focus:bg-white/5' : 'border-gray-200 focus:bg-gray-50'}`}
                             />
-                            <button
-                              onClick={() => document.getElementById('group-logo-upload')?.click()}
-                              className="text-xs font-bold text-blue-500 hover:text-blue-400"
-                            >
-                              Upload from Gallery
-                            </button>
                           </div>
                         </div>
-                        <input
-                          id="group-logo-upload"
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file || !selectedConversation) return;
+                      )}
 
-                            if (file.size > 5 * 1024 * 1024) {
-                              alert("File is too large. Please choose an image under 5MB.");
-                              return;
-                            }
-
-                            const formData = new FormData();
-                            formData.append('logo', file);
-
-                            try {
-                              const { uploadGroupLogo } = await import('@/actions/profile');
-                              const result = await uploadGroupLogo(selectedConversation.id, formData);
-                              if (result.error) {
-                                alert(result.error);
-                              } else if (result.logoUrl) {
-                                setGroupLogo(result.logoUrl);
-                              }
-                            } catch (error) {
-                              console.error('Upload failed', error);
-                            }
-                          }}
-                        />
-                      </div>
-
-                      {/* Participants */}
+                      {/* Participants Section */}
                       <div>
-                        <label className="text-xs font-bold uppercase opacity-50 block mb-2">Participants ({selectedConversation.participants.length})</label>
-                        <div className="bg-gray-500/5 rounded-xl overflow-hidden">
+                        <div className="flex items-center justify-between mb-2 px-1">
+                          <label className="text-[10px] font-bold uppercase opacity-60">
+                            Participants <span className="opacity-50">({selectedConversation.participants.length})</span>
+                          </label>
+                        </div>
+
+                        <div className={`rounded-xl overflow-hidden border ${isDark ? 'bg-zinc-900/50 border-white/5' : 'bg-gray-50 border-gray-200'}`}>
                           {selectedConversation.participants
                             .sort((a: any, b: any) => new Date(a.joined_at || 0).getTime() - new Date(b.joined_at || 0).getTime())
                             .map((p: any) => {
@@ -622,15 +698,19 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
                               const amIAdmin = currentUser?.id === adminId;
 
                               return (
-                                <div key={p.user_id} className="flex items-center justify-between p-3 hover:bg-white/5 border-b border-white/5 last:border-0">
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-full bg-gray-500/20 flex items-center justify-center overflow-hidden text-[10px] font-bold">
+                                <div key={p.user_id} className={`flex items-center justify-between p-2.5 border-b last:border-0 hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${isDark ? 'border-white/5' : 'border-gray-100'}`}>
+                                  <div className="flex items-center gap-2.5">
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center overflow-hidden text-[10px] font-bold shadow-sm ${isDark ? 'bg-zinc-800' : 'bg-white border'}`}>
                                       {p.profiles?.avatar_url ? <img src={p.profiles.avatar_url} className="w-full h-full object-cover" /> : p.profiles?.handle?.[0]?.toUpperCase()}
                                     </div>
                                     <div>
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-sm font-bold">@{p.profiles?.handle}</span>
-                                        {isUserAdmin && <span className="text-[9px] bg-blue-500 text-white px-1.5 rounded-full font-bold">ADMIN</span>}
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-sm font-semibold">@{p.profiles?.handle}</span>
+                                        {isUserAdmin && (
+                                          <span className="text-[8px] bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-1.5 py-0.5 rounded-full font-bold shadow-sm shadow-blue-500/20">
+                                            ADMIN
+                                          </span>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
@@ -643,8 +723,10 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
                                           window.location.reload();
                                         }
                                       }}
-                                      className="text-red-500 hover:text-red-400 p-2 rounded-lg hover:bg-red-500/10 transition-colors">
-                                      <X className="w-4 h-4" />
+                                      className="group/btn p-1.5 rounded-md hover:bg-red-500/10 transition-colors"
+                                      title="Remove User"
+                                    >
+                                      <X className="w-3.5 h-3.5 text-gray-400 group-hover/btn:text-red-500 transition-colors" />
                                     </button>
                                   )}
                                 </div>
@@ -652,26 +734,94 @@ const ChatTab: React.FC<ChatTabProps> = ({ isDark }) => {
                             })}
                         </div>
                       </div>
-                    </div>
 
-                    <div className="flex flex-col gap-3 pt-4 border-t border-white/5 mt-4">
-                      <div className="flex gap-3">
-                        <button onClick={() => setIsEditingGroup(false)} className="flex-1 py-3 rounded-xl font-bold bg-gray-500/10 hover:bg-gray-500/20 transition-colors">Cancel</button>
-                        <button onClick={handleUpdateGroup} className="flex-1 py-3 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-500 transition-colors shadow-lg shadow-blue-500/20">Save Changes</button>
+                      {/* Add Participants Section - Compact */}
+                      <div className={`p-3 rounded-xl border ${isDark ? 'bg-zinc-900/30 border-dashed border-white/10' : 'bg-gray-50/50 border-dashed border-gray-200'}`}>
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="p-1 bg-blue-500/10 rounded-md">
+                            <UserPlus className="w-3.5 h-3.5 text-blue-500" />
+                          </div>
+                          <span className="text-xs font-bold">Add Participants</span>
+                        </div>
+
+                        <div className="relative mb-2">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-50" />
+                          <input
+                            type="text"
+                            placeholder="Search friends..."
+                            className={`w-full pl-9 pr-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all ${isDark ? 'bg-zinc-950 border border-white/10' : 'bg-white border border-gray-200'}`}
+                            value={addPeopleQuery}
+                            onChange={(e) => setAddPeopleQuery(e.target.value)}
+                          />
+                        </div>
+
+                        {addPeopleQuery && (
+                          <div className="max-h-32 overflow-y-auto custom-scrollbar space-y-1 mb-2 pr-1">
+                            {profiles
+                              .filter(p => {
+                                const isAlreadyIn = selectedConversation.participants.some((mp: any) => mp.user_id === p.id);
+                                const matchesSearch = !addPeopleQuery || p.full_name?.toLowerCase().includes(addPeopleQuery.toLowerCase()) || p.handle?.toLowerCase().includes(addPeopleQuery.toLowerCase());
+                                return !isAlreadyIn && matchesSearch;
+                              })
+                              .map(user => (
+                                <div
+                                  key={user.id}
+                                  onClick={() => toggleAddUserSelection(user.id)}
+                                  className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-all border ${selectedForAdd.includes(user.id)
+                                    ? (isDark ? 'bg-blue-500/10 border-blue-500/30' : 'bg-blue-50 border-blue-200')
+                                    : 'border-transparent hover:bg-black/5 dark:hover:bg-white/5'}`}
+                                >
+                                  <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[9px] overflow-hidden ${isDark ? 'bg-zinc-800' : 'bg-white shadow-sm'}`}>
+                                    {user.avatar_url ? <img src={user.avatar_url} className="w-full h-full object-cover" /> : user.handle?.[0]}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-bold truncate">@{user.handle}</p>
+                                  </div>
+                                  {selectedForAdd.includes(user.id) ? (
+                                    <CheckCircle2 className="w-4 h-4 text-blue-500 fill-blue-500/20" />
+                                  ) : (
+                                    <div className={`w-4 h-4 rounded-full border-2 ${isDark ? 'border-white/10' : 'border-gray-300'}`} />
+                                  )}
+                                </div>
+                              ))
+                            }
+                          </div>
+                        )}
+
+                        <button
+                          onClick={handleAddParticipants}
+                          disabled={selectedForAdd.length === 0}
+                          className={`w-full py-2 rounded-lg font-bold text-xs transition-all shadow-md ${selectedForAdd.length > 0
+                            ? 'bg-blue-600 text-white hover:bg-blue-500 shadow-blue-500/25 active:scale-95'
+                            : 'bg-gray-100 dark:bg-white/5 text-gray-400 cursor-not-allowed shadow-none'}`}
+                        >
+                          {selectedForAdd.length > 0 ? `Add ${selectedForAdd.length} User${selectedForAdd.length > 1 ? 's' : ''}` : 'Select to add'}
+                        </button>
                       </div>
 
-                      <button
-                        onClick={async () => {
-                          if (confirm('Are you sure you want to leave this group?')) {
-                            const { leaveGroup } = await import('@/actions/chat');
-                            await leaveGroup(selectedConversation.id);
-                            window.location.reload();
-                          }
-                        }}
-                        className="w-full py-3 rounded-xl font-bold text-red-500 bg-red-500/5 hover:bg-red-500/10 flex items-center justify-center gap-2 transition-colors">
-                        Leave Group
-                      </button>
                     </div>
+
+                    {/* Footer Actions */}
+                    <div className={`p-3 border-t flex flex-col gap-2.5 ${isDark ? 'border-white/5 bg-zinc-900/50' : 'border-gray-100 bg-gray-50'}`}>
+                      {selectedConversation.is_group && (
+                        <button onClick={handleUpdateGroup} className="w-full py-2.5 rounded-xl font-bold text-sm bg-white text-black hover:bg-gray-100 dark:bg-white dark:text-black transition-colors shadow-md">Save Changes</button>
+                      )}
+
+                      {selectedConversation.is_group && (
+                        <button
+                          onClick={async () => {
+                            if (confirm('Are you sure you want to leave this group?')) {
+                              const { leaveGroup } = await import('@/actions/chat');
+                              await leaveGroup(selectedConversation.id);
+                              window.location.reload();
+                            }
+                          }}
+                          className="w-full py-2.5 rounded-xl font-bold text-sm text-red-500 hover:bg-red-500/5 transition-colors">
+                          Leave Group
+                        </button>
+                      )}
+                    </div>
+
                   </div>
                 </div>
               )}

@@ -13,7 +13,10 @@ const AdminSlidingNavbar: React.FC<AdminSlidingNavbarProps> = ({ isDark }) => {
     const tabs = [
         { id: '/admin/dashboard', label: 'Dashboard' },
         { id: '/admin/manage-roadmaps', label: 'Roadmaps' },
-
+        { id: '/admin/quiz/create', label: 'Quiz' },
+        { id: '/admin/events', label: 'Events' },
+        { id: '/admin/bans', label: 'Bans' },
+        { id: '/admin/support', label: 'Support' },
     ];
 
     const [isVisible, setIsVisible] = useState(true);
@@ -56,7 +59,7 @@ const AdminSlidingNavbar: React.FC<AdminSlidingNavbarProps> = ({ isDark }) => {
                     <Link
                         key={tab.id}
                         href={tab.id}
-                        className={`relative z-10 px-2 py-2.5 rounded-full text-[9px] md:text-[10px] font-black uppercase transition-colors duration-300 w-24 md:w-32 text-center truncate ${pathname === tab.id
+                        className={`relative z-10 px-2 py-2.5 rounded-full text-[9px] md:text-[10px] font-black uppercase transition-colors duration-300 w-16 md:w-24 text-center truncate ${pathname === tab.id
                             ? (isDark ? 'text-black' : 'text-white')
                             : `text-gray-500 hover:${isDark ? 'text-white' : 'text-black'}`
                             }`}

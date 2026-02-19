@@ -125,7 +125,7 @@ export default function AdminDashboard() {
         { title: 'Create Quiz', icon: Plus, path: '/admin/quiz/create', color: 'bg-indigo-500' },
         { title: 'Manage Roadmaps', icon: Map, path: '/admin/manage-roadmaps', color: 'bg-emerald-500' },
         { title: 'Ban Rules', icon: ShieldAlert, path: '/admin/bans', color: 'bg-red-500' },
-        { title: 'Add Event', icon: Calendar, path: '/admin/events', color: 'bg-blue-500' },
+        { title: 'Add Event', icon: Calendar, path: '/admin/events/add', color: 'bg-blue-500' },
     ];
 
     // Static for now, as events table wasn't explicitly in the schema provided earlier but can be added or fetched if exists
@@ -205,7 +205,10 @@ export default function AdminDashboard() {
                             ))}
 
                             {/* Help & Support Card */}
-                            <div className={`col-span-1 sm:col-span-2 p-6 rounded-2xl border flex items-center justify-between group cursor-pointer hover:border-indigo-500/50 transition-all ${isDark ? 'bg-gradient-to-r from-indigo-900/20 to-purple-900/20 border-white/10' : 'bg-gradient-to-r from-indigo-50 to-purple-50 border-gray-200'}`}>
+                            <div
+                                onClick={() => router.push('/admin/support')}
+                                className={`col-span-1 sm:col-span-2 p-6 rounded-2xl border flex items-center justify-between group cursor-pointer hover:border-indigo-500/50 transition-all ${isDark ? 'bg-gradient-to-r from-indigo-900/20 to-purple-900/20 border-white/10' : 'bg-gradient-to-r from-indigo-50 to-purple-50 border-gray-200'}`}
+                            >
                                 <div className="flex items-center gap-4">
                                     <div className="p-3 rounded-full bg-indigo-500 text-white shadow-lg shadow-indigo-500/30">
                                         <HelpCircle className="w-6 h-6" />
@@ -264,7 +267,10 @@ export default function AdminDashboard() {
                                     <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Hackathons, Exams, and Workshops</p>
                                 </div>
                             </div>
-                            <button className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${isDark ? 'border-white/20 hover:bg-white/5' : 'border-gray-300 hover:bg-gray-50'}`}>
+                            <button
+                                onClick={() => router.push('/admin/events')}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${isDark ? 'border-white/20 hover:bg-white/5' : 'border-gray-300 hover:bg-gray-50'}`}
+                            >
                                 Manage Events
                             </button>
                         </div>

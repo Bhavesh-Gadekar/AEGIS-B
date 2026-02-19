@@ -1,11 +1,12 @@
 "use client";
 
 import React from 'react';
-import { Sun, Moon, Bell, User } from 'lucide-react';
+import { Sun, Moon, User } from 'lucide-react';
 import Link from 'next/link';
 import AegisLogo from './AegisLogo';
 import { useAppContext } from '../AppProvider';
 import { usePathname } from 'next/navigation';
+import NotificationBell from './NotificationBell';
 
 const Header: React.FC = () => {
     const { isDark, toggleTheme } = useAppContext();
@@ -31,10 +32,7 @@ const Header: React.FC = () => {
                     {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-400" />}
                 </button>
 
-                <div className="hidden sm:block relative cursor-pointer group">
-                    <Bell className="w-5 h-5 text-gray-400 group-hover:text-indigo-500 transition-colors" />
-                    <div className="absolute top-0 right-0 w-2 h-2 bg-indigo-500 rounded-full border-2 border-inherit" />
-                </div>
+                <NotificationBell />
 
                 <Link
                     href="/profile"

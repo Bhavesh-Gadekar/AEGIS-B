@@ -14,6 +14,7 @@ import {
     Trophy,
     Star
 } from 'lucide-react';
+import { useAppContext } from '../../../components/AppProvider';
 
 const Antigravity = dynamic(() => import('../../../components/AntigravityInteractive'), {
     ssr: false,
@@ -435,7 +436,7 @@ export default function RoadmapDetailPage() {
     const router = useRouter();
     const params = useParams();
     const id = params.id as string;
-    const [isDark, setIsDark] = useState(true);
+    const { isDark } = useAppContext();
 
     // Derived data from static config
     const data = ROADMAP_DETAILS[id];
@@ -507,7 +508,7 @@ export default function RoadmapDetailPage() {
                 {/* Header */}
                 <div className="mb-16">
                     <button
-                        onClick={() => router.push('/?tab=roadmaps')}
+                        onClick={() => router.push('/roadmaps')}
                         className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest mb-8 transition-colors ${isDark ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-black/5 hover:bg-black/10 text-black'
                             }`}
                     >
