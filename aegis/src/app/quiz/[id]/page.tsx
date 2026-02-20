@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { ArrowLeft, Trophy, CheckCircle2, Clock, Brain, Play, AlertCircle, Sparkles } from 'lucide-react';
@@ -172,6 +173,9 @@ export default function QuizDetailPage() {
                         className={`w-full py-6 rounded-[2rem] font-black uppercase tracking-[0.4em] text-[10px] shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-3 border ${buttonState.disabled
                             ? 'bg-transparent text-white/20 border-white/5 cursor-not-allowed'
                             : 'bg-white text-black hover:bg-amber-500 hover:text-white border-transparent shadow-amber-500/20'
+                        className={`w-full py-5 rounded-[1.5rem] font-black uppercase tracking-[0.25em] text-xs shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3 ${buttonState.disabled
+                            ? 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5'
+                            : 'bg-amber-500 hover:bg-amber-400 text-white shadow-amber-500/20'
                             }`}
                     >
                         {buttonState.icon} {buttonState.text}

@@ -11,7 +11,7 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
     const { isDark } = useAppContext();
     const pathname = usePathname();
     const isAuthPage = pathname === '/login' || pathname === '/signup';
-    const isAdminPage = pathname.startsWith('/admin');
+
 
     return (
         <div className={`min-h-screen selection:bg-indigo-500/30 overflow-x-hidden transition-all duration-700 ease-in-out ${isDark ? 'bg-[#050505] text-white' : 'bg-[#fafafa] text-black'
@@ -39,8 +39,8 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
                 />
             </div>
 
-            {!isAuthPage && !isAdminPage && <Header />}
-            {!isAuthPage && !isAdminPage && <SlidingNavbar isDark={isDark} />}
+            {!isAuthPage && <Header />}
+            {!isAuthPage && <SlidingNavbar isDark={isDark} />}
 
             <main className="relative z-10">
                 {children}

@@ -10,7 +10,9 @@ interface SlidingNavbarProps {
 
 const SlidingNavbar: React.FC<SlidingNavbarProps> = ({ isDark }) => {
     const pathname = usePathname();
-    const tabs = [
+    const isAdmin = pathname.startsWith('/admin');
+
+    const userTabs = [
         { id: '/', label: 'Home' },
         { id: '/feed', label: 'Feed' },
         { id: '/network', label: 'Network' },
@@ -18,6 +20,17 @@ const SlidingNavbar: React.FC<SlidingNavbarProps> = ({ isDark }) => {
         { id: '/roadmaps', label: 'Roadmaps' },
         { id: '/quiz', label: 'Quiz' },
     ];
+
+    const adminTabs = [
+        { id: '/admin/dashboard', label: 'Dashboard' },
+        { id: '/admin/manage-roadmaps', label: 'Roadmaps' },
+        { id: '/admin/quiz/create', label: 'Quiz' },
+        { id: '/admin/events', label: 'Events' },
+        { id: '/admin/bans', label: 'Bans' },
+        { id: '/admin/support', label: 'Support' },
+    ];
+
+    const tabs = isAdmin ? adminTabs : userTabs;
 
     // Determine active index based on pathname
     // If pathname matches existing tab id, use that. Otherwise default to -1 or Home if exact match
