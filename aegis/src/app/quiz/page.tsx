@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Search, Trophy, Clock, Lock } from 'lucide-react';
 import { useAppContext } from '@/components/AppProvider';
 import { getUpcomingQuizzes } from '@/actions/quiz';
+import { createClient } from '@/utils/supabase/client';
 
 export default function QuizPage() {
     const { isDark } = useAppContext();
@@ -22,6 +23,27 @@ export default function QuizPage() {
             setLoading(false);
         };
         fetchQuizzes();
+    }, []);
+
+    // Real-time: update status badges when quizzes go live or complete
+    useEffect(() => {
+        const supabase = createClient();
+        const channel = supabase
+            .channel('quiz_list_statuses')
+            .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'quizzes' },
+                (payload) => {
+                    setQuizzes(prev => prev.map(q =>
+                        q.id === payload.new.id
+                            ? { ...q, status: payload.new.status, scheduled_at: payload.new.scheduled_at }
+                            : q
+                    ));
+                }
+            )
+            .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
     }, []);
 
     const filteredQuizzes = quizzes.filter(q =>
@@ -77,6 +99,16 @@ export default function QuizPage() {
                                 </div>
                                 <span className={`px-5 py-2 rounded-full text-[9px] font-black tracking-[0.2em] uppercase border ${isDark ? 'bg-amber-500/10 border-amber-500/20 text-amber-500 shadow-lg' : 'bg-amber-50 border-amber-500/20 text-amber-600 shadow-sm'
                                     }`}>{q.difficulty}</span>
+                                {q.status === 'live' && (
+                                    <span className="px-4 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-red-500/10 border border-red-500/30 text-red-500 animate-pulse ml-2">
+                                        LIVE
+                                    </span>
+                                )}
+                                {q.status === 'completed' && (
+                                    <span className="px-4 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-gray-500/10 border border-gray-500/30 text-gray-500 ml-2">
+                                        ENDED
+                                    </span>
+                                )}
                             </div>
 
                             <div className="flex-1">
@@ -92,16 +124,20 @@ export default function QuizPage() {
 
                             <div className="flex gap-4 mt-auto">
                                 <button
-                                    className={`flex-1 py-5 px-6 rounded-[1.8rem] font-black uppercase tracking-[0.3em] text-[9px] transition-all active:scale-95 flex items-center justify-center gap-2 ${q.status === 'live'
+                                    className={`flex-1 py-5 px-6 rounded-[1.8rem] font-black uppercase tracking-[0.3em] text-[9px] transition-all active:scale-95 flex items-center justify-center gap-2 ${
+                                        q.status === 'completed'
+                                        ? 'bg-transparent border border-gray-500/30 text-gray-400 cursor-not-allowed'
+                                        : q.status === 'live'
                                         ? 'bg-amber-500 text-white hover:bg-amber-400 shadow-2xl shadow-amber-500/30 ring-4 ring-amber-500/20'
                                         : (isDark ? 'bg-white/5 border border-white/10 text-white hover:bg-white/10 shadow-lg' : 'bg-gray-50 border border-black/10 text-black hover:bg-gray-100 shadow-sm')
-                                        }`}
+                                    }`}
+                                    disabled={q.status === 'completed'}
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         router.push(`/quiz/${q.id}`);
                                     }}
                                 >
-                                    {q.status === 'live' ? <><Play className="w-3 h-3 fill-current" /> Engage</> : 'Register'}
+                                    {q.status === 'completed' ? 'Concluded' : q.status === 'live' ? <><Play className="w-3 h-3 fill-current" /> Engage</> : 'Register'}
                                 </button>
                                 <button
                                     className={`w-20 py-5 rounded-[1.8rem] flex items-center justify-center border transition-all active:scale-95 ${isDark ? 'bg-transparent border-white/10 text-white hover:bg-white/5' : 'bg-transparent border-black/10 text-black hover:bg-black/5'

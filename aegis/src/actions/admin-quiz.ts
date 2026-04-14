@@ -15,11 +15,18 @@ export async function getAdminQuizzes() {
         .from("quizzes")
         .select(`
             *,
-            registration_count:quiz_registrations(count)
+            registration_count:quiz_registrations(count),
+            quiz_questions(timer_seconds)
         `)
         .order('scheduled_at', { ascending: false });
 
     if (error) return { error: error.message };
 
-    return { data };
+    // Normalize registration_count from raw aggregation array to a plain number
+    const normalized = data.map((quiz: any) => ({
+        ...quiz,
+        registration_count: Number(quiz.registration_count?.[0]?.count) || 0
+    }));
+
+    return { data: normalized };
 }

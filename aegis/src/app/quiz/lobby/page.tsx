@@ -27,21 +27,31 @@ function QuizLobbyContent() {
     const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
     const [isStarting, setIsStarting] = useState(false);
+    const [registeredCount, setRegisteredCount] = useState<number>(0);
 
     // 1. Initial Load: Quiz Status & Profile
     useEffect(() => {
         if (!quizId) return;
 
         const init = async () => {
-            const [statusRes, profile] = await Promise.all([
+            const [statusRes, profileRes] = await Promise.all([
                 getQuizSessionStatus(quizId),
                 getProfile()
             ]);
 
+            // Handle both { data } shape and direct object shape
+            const profile = (profileRes as any)?.data || profileRes;
+
             if (statusRes.data) {
                 setQuiz(statusRes.data);
+                setRegisteredCount(Number(statusRes.data.registration_count) || 0);
                 if (!statusRes.data.is_registered) {
                     router.push(`/quiz/${quizId}`);
+                    return;
+                }
+                // Late joiner: quiz already live — go straight to play
+                if (statusRes.data.status === 'live') {
+                    router.push(`/quiz/play?id=${quizId}`);
                     return;
                 }
             }
@@ -49,10 +59,12 @@ function QuizLobbyContent() {
 
             // 2. Realtime Presence
             if (profile) {
+                // Unique key per connection so testing in multiple tabs works
+                const presenceKey = `${profile.id}_${Math.random().toString(36).substring(7)}`;
                 const channel = supabase.channel(`quiz_lobby_${quizId}`, {
                     config: {
                         presence: {
-                            key: profile.id,
+                            key: presenceKey,
                         },
                     },
                 });
@@ -112,9 +124,17 @@ function QuizLobbyContent() {
                     if (res.error) {
                         setIsStarting(false);
                         console.error("Auto-start failed:", res.error);
+                        if (res.error.includes("already live") || res.error.includes("finished")) {
+                            router.push(`/quiz/play?id=${quizId}`);
+                        }
                     } else {
                         console.log("Auto-start successful");
+                        router.push(`/quiz/play?id=${quizId}`);
                     }
+                }
+            } else if (diff <= 0) {
+                if (quiz.status === 'live' || isStarting) {
+                    router.push(`/quiz/play?id=${quizId}`);
                 }
             }
         };
@@ -218,13 +238,13 @@ function QuizLobbyContent() {
                         <div className="flex items-center justify-center gap-4 mb-10">
                             <div className="h-px bg-white/10 flex-1" />
                             <Users className="w-6 h-6 opacity-30" />
-                            <h2 className="text-2xl font-black uppercase italic tracking-tight">Active Combatants ({participants.length})</h2>
+                            <h2 className="text-2xl font-black uppercase italic tracking-tight">In Lobby: {participants.length} / {registeredCount} Registered</h2>
                             <div className="h-px bg-white/10 flex-1" />
                         </div>
 
                         <div className="flex flex-wrap justify-center gap-8 min-h-[160px]">
                             {participants.map((participant, index) => (
-                                <div key={participant.id} className="flex flex-col items-center gap-4 group">
+                                <div key={index} className="flex flex-col items-center gap-4 group">
                                     <div className={`relative w-24 h-24 rounded-[2.5rem] border-4 flex items-center justify-center overflow-hidden bg-gradient-to-br ${getGradientColor(index)} transition-all duration-500 hover:rotate-6 hover:scale-110 cursor-pointer shadow-xl group-hover:shadow-amber-500/20`}>
                                         {participant.avatar ? (
                                             <img src={participant.avatar} alt={participant.name} className="w-full h-full object-cover" />

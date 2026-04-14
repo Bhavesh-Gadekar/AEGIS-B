@@ -33,6 +33,7 @@ export async function startQuiz(quizId: number) {
 export async function submitAnswerSecure(params: {
     quizId: number;
     questionId: string;
+    questionIndex: number;   // INTEGER column — progress tracking
     chosenIndex: number;
     responseTimeMs: number; // For speed bonus calculation (verified by server time if possible)
 }) {
@@ -94,7 +95,7 @@ export async function submitAnswerSecure(params: {
             .from("quiz_attempts")
             .update({
                 total_points: attempt.total_points + pointsEarned,
-                last_answered_index: params.questionId // Mapping this to track progress
+                last_answered_index: params.questionIndex // INTEGER — tracks progress
             })
             .eq("id", attempt.id);
 
@@ -112,6 +113,16 @@ export async function submitAnswerSecure(params: {
 
         if (insertError) return { error: insertError.message };
     }
+
+    // Sync cumulative score to quiz_participants for realtime leaderboard
+    // Calculate the new total directly — no extra DB fetch needed
+    const newTotal = attempt ? attempt.total_points + pointsEarned : pointsEarned;
+
+    await supabase
+        .from("quiz_participants")
+        .update({ score: newTotal })
+        .eq("user_id", user.id)
+        .eq("quiz_id", params.quizId);
 
     return { success: true, points: pointsEarned };
 }
@@ -151,5 +162,70 @@ export async function autoStartQuiz(quizId: number) {
     if (error) return { error: error.message };
 
     revalidatePath(`/quiz/${quizId}`);
+    return { success: true };
+}
+
+/**
+ * Auto/Admin: Mark quiz as completed and deactivate all participants
+ */
+export async function endQuiz(quizId: number) {
+    const supabase = await createClient();
+
+    // Mark quiz completed
+    const { error: quizError } = await supabase
+        .from("quizzes")
+        .update({ status: 'completed' })
+        .eq("id", quizId)
+        .in("status", ['live', 'scheduled']);
+
+    if (quizError) return { error: quizError.message };
+
+    // Deactivate all participants
+    await supabase
+        .from("quiz_participants")
+        .update({ is_active: false })
+        .eq("quiz_id", quizId);
+
+    revalidatePath("/quiz");
+    revalidatePath(`/quiz/${quizId}`);
+    return { success: true };
+}
+
+/**
+ * User: Join as active participant (called on play page mount)
+ * Prevents multiple active sessions
+ */
+export async function joinAsParticipant(quizId: number) {
+    const supabase = await createClient();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "Authentication required" };
+
+    // Must be registered
+    const { data: registration } = await supabase
+        .from("quiz_registrations")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("quiz_id", quizId)
+        .single();
+
+    if (!registration) return { error: "Not registered for this quiz" };
+
+    // Upsert participant record (handles duplicate session prevention)
+    const { error } = await supabase
+        .from("quiz_participants")
+        .upsert(
+            {
+                quiz_id: quizId,
+                user_id: user.id,
+                score: 0,
+                is_active: true,
+                joined_at: new Date().toISOString()
+            },
+            { onConflict: 'quiz_id,user_id' }
+        );
+
+    if (error) return { error: error.message };
+
     return { success: true };
 }

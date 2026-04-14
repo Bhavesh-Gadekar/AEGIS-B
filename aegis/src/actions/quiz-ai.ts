@@ -1,8 +1,8 @@
 "use server";
 
 import { createClient } from "@/utils/supabase/server";
-import { geminiModel } from "@/lib/gemini";
 import { revalidatePath } from "next/cache";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 /**
  * Admin: Generate quiz content using Gemini AI (Preview only)
@@ -28,25 +28,65 @@ export async function generateQuizAI(params: {
 
     // 2. Deep Prompting for Structured Quiz
     const prompt = `Generate a high-quality quiz about "${params.topic}" at "${params.difficulty}" difficulty.
-    Generate exactly ${params.num_questions} questions.
-    
-    Output ONLY a JSON array of objects with this structure:
-    [
-      {
-        "question": "string",
-        "options": ["string", "string", "string", "string"],
-        "correct_index": number (0-3),
-        "timer_seconds": 15
-      }
-    ]`;
+Generate exactly ${params.num_questions} questions.
+
+Return ONLY a valid JSON array (no markdown, no explanation) with this exact structure:
+[
+  {
+    "question": "string",
+    "options": ["string", "string", "string", "string"],
+    "correct_index": 0,
+    "timer_seconds": 15
+  }
+]`;
 
     try {
-        const result = await geminiModel.generateContent(prompt);
+        // Use gemini-2.5-flash — JSON output enforced via prompt + fence-stripping
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+        const model = genAI.getGenerativeModel({
+            model: "gemini-2.5-flash",
+        });
+
+        // Retry up to 3 times with exponential backoff for 503 overload errors
+        const MAX_RETRIES = 3;
+        let lastError: any;
+        let result: any;
+
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                result = await model.generateContent(prompt);
+                break; // Success — exit retry loop
+            } catch (err: any) {
+                lastError = err;
+                const is503 = err?.message?.includes('503') || err?.message?.includes('Service Unavailable') || err?.message?.includes('high demand');
+                if (is503 && attempt < MAX_RETRIES) {
+                    const delay = attempt * 1000; // 1s, 2s, 3s
+                    console.warn(`Gemini 503 on attempt ${attempt}/${MAX_RETRIES}. Retrying in ${delay}ms...`);
+                    await new Promise(res => setTimeout(res, delay));
+                    continue;
+                }
+                throw err; // Non-503 error or out of retries
+            }
+        }
+
         const responseText = result.response.text();
-        const quizQuestions = JSON.parse(responseText);
+
+        // Clean any accidental markdown fences just in case
+        const cleaned = responseText.replace(/```json[\s\S]*?```|```[\s\S]*?```/g, (s: string) =>
+            s.replace(/```json|```/g, '').trim()
+        ).trim();
+
+        let quizQuestions: any[];
+        try {
+            quizQuestions = JSON.parse(cleaned);
+        } catch (parseErr) {
+            console.error("JSON parse failed. Raw response:", responseText);
+            return { error: `AI returned unparseable response. Raw: ${responseText.slice(0, 200)}` };
+        }
 
         if (!Array.isArray(quizQuestions)) {
-            throw new Error("AI returned invalid data format");
+            console.error("AI returned non-array:", quizQuestions);
+            return { error: "AI returned invalid data format (expected an array)" };
         }
 
         // Return the content for editing in the UI
@@ -65,7 +105,9 @@ export async function generateQuizAI(params: {
         };
 
     } catch (err: any) {
-        console.error("Gemini Quiz Generation Failed:", err);
-        return { error: "Failed to generate quiz. Please check topic or try again." };
+        const message = err?.message || String(err);
+        console.error("Gemini Quiz Generation Failed:", message);
+        // Surface the actual error so it's debuggable
+        return { error: `Gemini error: ${message}` };
     }
 }

@@ -10,7 +10,7 @@ export async function createQuizManual(quizData: {
     title: string;
     description: string;
     duration_minutes: number;
-    scheduled_at: string;
+    scheduled_at?: string | null;
     questions: {
         question_text: string;
         options: string[];
@@ -39,7 +39,7 @@ export async function createQuizManual(quizData: {
             title: quizData.title,
             description: quizData.description,
             duration_minutes: quizData.duration_minutes,
-            scheduled_at: quizData.scheduled_at,
+            scheduled_at: quizData.scheduled_at || null,
             status: 'scheduled',
             created_by: user.id
         })
@@ -108,7 +108,8 @@ export async function getQuizSessionStatus(quizId: number) {
         .from("quizzes")
         .select(`
             *,
-            registration_count:quiz_registrations(count)
+            registration_count:quiz_registrations(count),
+            quiz_questions(timer_seconds)
         `)
         .eq("id", quizId)
         .single();
@@ -148,8 +149,8 @@ export async function getUpcomingQuizzes() {
     const { data, error } = await supabase
         .from("quizzes")
         .select("*")
-        .eq("status", "scheduled")
-        .order("scheduled_at", { ascending: true });
+        .in("status", ["scheduled", "live", "completed"])
+        .order("scheduled_at", { ascending: false });
 
     if (error) return { error: error.message };
     return { data };
@@ -166,6 +167,125 @@ export async function getQuizQuestions(quizId: number) {
         .select("*")
         .eq("quiz_id", quizId)
         .order("order_index", { ascending: true });
+
+    if (error) return { error: error.message };
+    return { data };
+}
+
+/**
+ * Admin: Schedule or reschedule a quiz (set date/time separately from creation)
+ */
+export async function scheduleQuiz(quizId: number, scheduledAt: string, durationMinutes: number) {
+    const supabase = await createClient();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "Authentication required" };
+
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+    if (profile?.role !== 'admin') return { error: "Admin access required" };
+
+    const { error } = await supabase
+        .from("quizzes")
+        .update({
+            scheduled_at: scheduledAt,
+            duration_minutes: durationMinutes,
+            status: 'scheduled'
+        })
+        .eq("id", quizId);
+
+    if (error) return { error: error.message };
+
+    revalidatePath("/quiz");
+    revalidatePath(`/quiz/${quizId}`);
+    return { success: true };
+}
+
+/**
+ * Admin: Delete a quiz and all associated data
+ */
+export async function deleteQuiz(quizId: number) {
+    const supabase = await createClient();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "Authentication required" };
+
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+    if (profile?.role !== 'admin') return { error: "Admin access required" };
+
+    const { data, error } = await supabase
+        .from("quizzes")
+        .delete()
+        .eq("id", quizId)
+        .select();
+
+    if (error) return { error: error.message };
+    
+    // Supabase RLS silently ignores deletes without a policy, deleting 0 rows without throwing an error
+    if (!data || data.length === 0) {
+        return { error: "Action blocked by Database Security (RLS). Missing DELETE policy on quizzes table." };
+    }
+
+    revalidatePath("/quiz");
+    revalidatePath("/admin/quiz");
+    return { success: true };
+}
+
+/**
+ * Admin: Update a quiz question
+ */
+export async function updateQuizQuestion(questionId: number, updates: { question_text: string, options: string[], correct_option_index: number, timer_seconds: number }) {
+    const supabase = await createClient();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "Authentication required" };
+
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+    if (profile?.role !== 'admin') return { error: "Admin access required" };
+
+    const { error } = await supabase
+        .from("quiz_questions")
+        .update({
+            question_text: updates.question_text,
+            options: updates.options,
+            correct_option_index: updates.correct_option_index,
+            timer_seconds: updates.timer_seconds
+        })
+        .eq("id", questionId);
+
+    if (error) return { error: error.message };
+
+    revalidatePath("/quiz");
+    revalidatePath("/admin/quiz");
+    return { success: true };
+}
+
+/**
+ * Common: Get final leaderboard results for a completed quiz
+ */
+export async function getQuizResults(quizId: number) {
+    const supabase = await createClient();
+
+    const { data, error } = await supabase
+        .from("quiz_participants")
+        .select("user_id, score, profiles(full_name, handle, avatar_url)")
+        .eq("quiz_id", quizId)
+        .order("score", { ascending: false })
+        .limit(20);
 
     if (error) return { error: error.message };
     return { data };

@@ -34,9 +34,15 @@ export interface Roadmap {
 export interface Quiz {
   id: number;
   title: string;
-  difficulty: string;
-  active: boolean;
-  time: string;
+  description: string | null;
+  difficulty: 'Easy' | 'Medium' | 'Hard' | 'Expert';
+  status: 'scheduled' | 'live' | 'completed';
+  scheduled_at: string | null;
+  duration_minutes: number;
+  registration_count: number;
+  is_registered?: boolean;
+  created_at: string;
+  created_by: string | null;
 }
 
 // API Response types

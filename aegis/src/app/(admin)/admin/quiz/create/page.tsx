@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Plus, Save, Trash2, CheckCircle2, Sparkles, Calendar, Clock, Brain } from 'lucide-react';
 import { useAppContext } from '@/components/AppProvider';
 import { toast } from 'sonner';
-import { createQuizManual } from '@/actions/quiz';
+import { createQuizManual, scheduleQuiz } from '@/actions/quiz';
 import { generateQuizAI } from '@/actions/quiz-ai';
 
 export default function CreateQuizPage() {
@@ -13,6 +13,23 @@ export default function CreateQuizPage() {
     const { isDark } = useAppContext();
     const [loading, setLoading] = useState(false);
     const [createMode, setCreateMode] = useState<'manual' | 'ai'>('manual');
+    const [createdQuizId, setCreatedQuizId] = useState<number | null>(null);
+    const [scheduleDate, setScheduleDate] = useState(() => {
+        const n = new Date(); const p = (v: number) => String(v).padStart(2, '0');
+        return `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())}`;
+    });
+    const [scheduleTime, setScheduleTime] = useState(() => {
+        const n = new Date(); const p = (v: number) => String(v).padStart(2, '0');
+        return `${p(n.getHours())}:${p(n.getMinutes())}`;
+    });
+    const [scheduleDuration, setScheduleDuration] = useState(15);
+    const [scheduling, setScheduling] = useState(false);
+
+    // Initialise to current local date & time
+    const _now = new Date();
+    const _pad = (n: number) => String(n).padStart(2, '0');
+    const _defaultDate = `${_now.getFullYear()}-${_pad(_now.getMonth() + 1)}-${_pad(_now.getDate())}`;
+    const _defaultTime = `${_pad(_now.getHours())}:${_pad(_now.getMinutes())}`;
 
     // Manual Quiz State
     const [quizData, setQuizData] = useState({
@@ -21,8 +38,8 @@ export default function CreateQuizPage() {
         category: 'Development',
         difficulty: 'Easy',
         duration_minutes: 15,
-        scheduled_date: '',
-        scheduled_time: ''
+        scheduled_date: _defaultDate,
+        scheduled_time: _defaultTime
     });
 
     const [questions, setQuestions] = useState([
@@ -87,37 +104,25 @@ export default function CreateQuizPage() {
                     return;
                 }
 
-                if (!quizData.scheduled_date || !quizData.scheduled_time) {
-                    toast.error("Please set a broadcast schedule (Date & Time)");
-                    setLoading(false);
-                    return;
-                }
-
                 const result = await createQuizManual({
                     title: quizData.title,
                     description: quizData.description,
-                    duration_minutes: quizData.duration_minutes,
+                    duration_minutes: quizData.duration_minutes || 15,
                     questions: questions.map(q => ({
                         question_text: q.questionText,
                         options: q.options,
                         correct_index: q.correctIndex,
                         timer_seconds: q.timerSeconds
                     })),
-                    scheduled_at: new Date(`${quizData.scheduled_date} ${quizData.scheduled_time}`).toISOString()
+                    scheduled_at: null
                 });
 
                 if (result.error) throw new Error(result.error);
-                toast.success("Quiz created successfully!");
-                router.push('/admin/dashboard');
+                setCreatedQuizId(result.quizId!);
+                toast.success("Quiz created! Now set the schedule.");
             } else {
                 if (!aiParams.topic) {
                     toast.error("Please provide a topic for AI generation");
-                    setLoading(false);
-                    return;
-                }
-
-                if (!aiParams.scheduled_date || !aiParams.scheduled_time) {
-                    toast.error("AI trials require a broadcast schedule");
                     setLoading(false);
                     return;
                 }
@@ -136,8 +141,6 @@ export default function CreateQuizPage() {
                         ...quizData,
                         title: result.data.title,
                         description: result.data.description,
-                        scheduled_date: aiParams.scheduled_date,
-                        scheduled_time: aiParams.scheduled_time,
                         difficulty: aiParams.difficulty
                     });
 
@@ -252,49 +255,6 @@ export default function CreateQuizPage() {
                             </div>
                         </div>
 
-                        {/* Scheduling */}
-                        <div className={`p-8 rounded-[2.5rem] border backdrop-blur-3xl ${isDark ? 'bg-white/5 border-white/10 shadow-2xl' : 'bg-white border-black/5 shadow-xl'}`}>
-                            <h2 className="text-xl font-black mb-6 uppercase tracking-tight flex items-center gap-3">
-                                <span className="w-8 h-8 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center text-sm italic">02</span>
-                                Scheduling & Parameters
-                            </h2>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                                <div className="space-y-3">
-                                    <label className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Start Date</label>
-                                    <div className="relative">
-                                        <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
-                                        <input
-                                            type="date"
-                                            value={quizData.scheduled_date}
-                                            onChange={e => setQuizData({ ...quizData, scheduled_date: e.target.value })}
-                                            className={`w-full p-4 pl-12 rounded-2xl border outline-none font-bold transition-all ${isDark ? 'bg-black/40 border-white/10 focus:border-blue-500/50' : 'bg-gray-50 border-gray-200'}`}
-                                        />
-                                    </div>
-                                </div>
-                                <div className="space-y-3">
-                                    <label className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Start Time</label>
-                                    <div className="relative">
-                                        <Clock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30" />
-                                        <input
-                                            type="time"
-                                            value={quizData.scheduled_time}
-                                            onChange={e => setQuizData({ ...quizData, scheduled_time: e.target.value })}
-                                            className={`w-full p-4 pl-12 rounded-2xl border outline-none font-bold transition-all ${isDark ? 'bg-black/40 border-white/10 focus:border-blue-500/50' : 'bg-gray-50 border-gray-200'}`}
-                                        />
-                                    </div>
-                                </div>
-                                <div className="space-y-3">
-                                    <label className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Total Duration (MIN)</label>
-                                    <input
-                                        type="number"
-                                        value={quizData.duration_minutes}
-                                        onChange={e => setQuizData({ ...quizData, duration_minutes: parseInt(e.target.value) })}
-                                        className={`w-full p-4 rounded-2xl border outline-none font-bold transition-all ${isDark ? 'bg-black/40 border-white/10 focus:border-blue-500/50' : 'bg-gray-50 border-gray-200'}`}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
                         {/* Questions List */}
                         <div className="space-y-6">
                             <div className="flex justify-between items-center px-4">
@@ -321,12 +281,12 @@ export default function CreateQuizPage() {
 
                                     <div className="mb-8">
                                         <label className="text-[10px] font-black uppercase tracking-widest opacity-30 mb-3 block">Question {index + 1}</label>
-                                        <input
-                                            type="text"
+                                        <textarea
+                                            rows={2}
                                             value={q.questionText}
                                             onChange={e => handleQuestionChange(q.id, 'questionText', e.target.value)}
                                             placeholder="What is the time complexity of..."
-                                            className="w-full text-2xl font-black bg-transparent border-none outline-none placeholder:opacity-20"
+                                            className="w-full text-2xl font-black bg-transparent border-none outline-none placeholder:opacity-20 resize-none"
                                         />
                                     </div>
 
@@ -342,12 +302,12 @@ export default function CreateQuizPage() {
                                                 >
                                                     {q.correctIndex === oIndex ? <CheckCircle2 className="w-5 h-5" /> : <span className="text-[10px] font-black opacity-30">{String.fromCharCode(65 + oIndex)}</span>}
                                                 </button>
-                                                <input
-                                                    type="text"
+                                                <textarea
+                                                    rows={2}
                                                     value={opt}
                                                     onChange={e => handleOptionChange(q.id, oIndex, e.target.value)}
                                                     placeholder={`Enter option ${String.fromCharCode(65 + oIndex)}`}
-                                                    className={`flex-1 p-4 rounded-2xl text-sm font-bold bg-transparent border outline-none transition-all ${isDark ? 'border-white/5 focus:border-white/20' : 'border-gray-100'}`}
+                                                    className={`flex-1 p-4 rounded-2xl text-sm font-bold bg-transparent border outline-none resize-none transition-all ${isDark ? 'border-white/5 focus:border-white/20' : 'border-gray-100'}`}
                                                 />
                                             </div>
                                         ))}
@@ -414,33 +374,6 @@ export default function CreateQuizPage() {
                                     </div>
                                 </div>
 
-                                <div className="h-px bg-white/5 my-8" />
-
-                                <div className="space-y-6">
-                                    <h3 className="text-sm font-black uppercase tracking-widest opacity-40 italic flex items-center gap-2">
-                                        <Calendar className="w-4 h-4" /> Broadcast Schedule
-                                    </h3>
-                                    <div className="grid grid-cols-2 gap-8">
-                                        <div className="space-y-3">
-                                            <label className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Start Date</label>
-                                            <input
-                                                type="date"
-                                                value={aiParams.scheduled_date}
-                                                onChange={e => setAiParams({ ...aiParams, scheduled_date: e.target.value })}
-                                                className={`w-full p-4 rounded-2xl border outline-none font-black transition-all ${isDark ? 'bg-black/60 border-white/10 text-white' : 'bg-gray-50 border-gray-200'}`}
-                                            />
-                                        </div>
-                                        <div className="space-y-3">
-                                            <label className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Start Time</label>
-                                            <input
-                                                type="time"
-                                                value={aiParams.scheduled_time}
-                                                onChange={e => setAiParams({ ...aiParams, scheduled_time: e.target.value })}
-                                                className={`w-full p-4 rounded-2xl border outline-none font-black transition-all ${isDark ? 'bg-black/60 border-white/10 text-white' : 'bg-gray-50 border-gray-200'}`}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -464,6 +397,75 @@ export default function CreateQuizPage() {
                         )}
                     </button>
                 </div>
+
+                {/* Post-creation Scheduling Panel */}
+                {createdQuizId && (
+                    <div className="mt-8 p-8 rounded-3xl border border-amber-500/20 bg-amber-500/5">
+                        <h3 className="text-xl font-black italic uppercase tracking-tight mb-6">Schedule This Quiz</h3>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest opacity-40 block mb-2">Date</label>
+                                <input
+                                    type="date"
+                                    value={scheduleDate}
+                                    onChange={e => setScheduleDate(e.target.value)}
+                                    className="w-full px-4 py-3 rounded-2xl bg-white/5 border border-white/10 font-bold text-sm focus:outline-none focus:border-amber-500/50"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest opacity-40 block mb-2">Time</label>
+                                <input
+                                    type="time"
+                                    value={scheduleTime}
+                                    onChange={e => setScheduleTime(e.target.value)}
+                                    className="w-full px-4 py-3 rounded-2xl bg-white/5 border border-white/10 font-bold text-sm focus:outline-none focus:border-amber-500/50"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest opacity-40 block mb-2">Duration (mins)</label>
+                                <input
+                                    type="number"
+                                    value={scheduleDuration}
+                                    onChange={e => setScheduleDuration(Number(e.target.value))}
+                                    min={5}
+                                    max={180}
+                                    className="w-full px-4 py-3 rounded-2xl bg-white/5 border border-white/10 font-bold text-sm focus:outline-none focus:border-amber-500/50"
+                                />
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={async () => {
+                                if (!scheduleDate || !scheduleTime) {
+                                    toast.error("Please select both date and time");
+                                    return;
+                                }
+                                setScheduling(true);
+                                const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
+                                const result = await scheduleQuiz(createdQuizId, scheduledAt, scheduleDuration);
+                                if (result.success) {
+                                    toast.success("Quiz scheduled successfully!");
+                                    router.push('/admin/quiz');
+                                } else {
+                                    toast.error(result.error || "Scheduling failed");
+                                    setScheduling(false);
+                                }
+                            }}
+                            disabled={scheduling}
+                            className="w-full py-4 rounded-2xl bg-amber-500 text-white font-black uppercase tracking-widest text-xs hover:bg-amber-400 transition-all disabled:opacity-50"
+                        >
+                            {scheduling ? 'Scheduling...' : 'Confirm Schedule & Publish'}
+                        </button>
+
+                        <button
+                            onClick={() => router.push('/admin/quiz')}
+                            className="w-full mt-3 py-3 rounded-2xl border border-white/10 font-black uppercase tracking-widest text-xs opacity-40 hover:opacity-60 transition-all"
+                        >
+                            Skip Scheduling (Schedule Later)
+                        </button>
+                    </div>
+                )}
             </div>
             <div className="h-40" />
         </div>

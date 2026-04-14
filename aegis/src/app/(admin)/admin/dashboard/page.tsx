@@ -122,6 +122,7 @@ export default function AdminDashboard() {
     ];
 
     const QUICK_ACTIONS = [
+        { title: 'Quiz Control', icon: Trophy, path: '/admin/quiz', color: 'bg-amber-500' },
         { title: 'Create Quiz', icon: Plus, path: '/admin/quiz/create', color: 'bg-indigo-500' },
         { title: 'Manage Roadmaps', icon: Map, path: '/admin/manage-roadmaps', color: 'bg-emerald-500' },
         { title: 'Ban Rules', icon: ShieldAlert, path: '/admin/bans', color: 'bg-red-500' },
@@ -251,6 +252,33 @@ export default function AdminDashboard() {
                                 )) : (
                                     <div className="text-sm opacity-60 text-center py-4">No quiz results yet.</div>
                                 )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Quiz Control Section */}
+                    <div
+                        onClick={() => router.push('/admin/quiz')}
+                        className={`mb-10 p-6 md:p-8 rounded-2xl border cursor-pointer group transition-all hover:scale-[1.01] ${isDark ? 'bg-amber-500/5 border-amber-500/20 hover:border-amber-500/40' : 'bg-amber-50 border-amber-200 hover:border-amber-400'}`}
+                    >
+                        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-500">
+                                    <Trophy className="w-7 h-7" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black italic uppercase tracking-tight">Quiz Control</h3>
+                                    <p className={`text-xs font-bold uppercase tracking-widest opacity-50 mt-0.5`}>Manage, schedule & monitor live competitions</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <button
+                                    onClick={e => { e.stopPropagation(); router.push('/admin/quiz/create'); }}
+                                    className="px-5 py-2.5 rounded-xl bg-amber-500 text-white font-black text-xs uppercase tracking-widest hover:bg-amber-400 transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2"
+                                >
+                                    <Plus className="w-3.5 h-3.5" /> New Quiz
+                                </button>
+                                <ArrowRight className="w-5 h-5 opacity-40 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0 transition-all" />
                             </div>
                         </div>
                     </div>

@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import { Trophy, Clock, CheckCircle, XCircle, Crown, Medal, Award, Brain, Sparkles, AlertCircle } from 'lucide-react';
 import { useAppContext } from '@/components/AppProvider';
 import { getQuizQuestions, getQuizSessionStatus } from '@/actions/quiz';
-import { submitAnswerSecure } from '@/actions/quiz-session';
+import { submitAnswerSecure, joinAsParticipant, endQuiz } from '@/actions/quiz-session';
 import { createClient } from '@/utils/supabase/client';
 import { toast } from 'sonner';
 
@@ -20,7 +20,6 @@ function QuizPlayContent() {
     const searchParams = useSearchParams();
     const quizId = parseInt(searchParams.get('id') || '');
     const { isDark } = useAppContext();
-    const supabase = createClient();
 
     // Quiz Data
     const [quiz, setQuiz] = useState<any>(null);
@@ -42,7 +41,16 @@ function QuizPlayContent() {
     // Leaderboard
     const [leaderboard, setLeaderboard] = useState<any[]>([]);
 
-    // 1. Fetch Initial Data
+    // Identity & Quiz End
+    const [currentUserId, setCurrentUserId] = useState<string>('');
+    const [currentUserName, setCurrentUserName] = useState<string>('You');
+    const [quizEnded, setQuizEnded] = useState(false);
+
+    // Accuracy tracking
+    const [correctAnswers, setCorrectAnswers] = useState(0);
+    const [totalAnswered, setTotalAnswered] = useState(0);
+
+    // 1. Fetch Initial Data + Auth Guard
     useEffect(() => {
         if (!quizId) return;
         const init = async () => {
@@ -51,28 +59,106 @@ function QuizPlayContent() {
                 getQuizQuestions(quizId)
             ]);
 
+            // Auth + registration guard
+            if (!statusRes.data?.is_registered) {
+                toast.error("You are not registered for this quiz.");
+                router.push(`/quiz/${quizId}`);
+                return;
+            }
+            if (statusRes.data?.status !== 'live') {
+                toast.error("This quiz is not currently live.");
+                router.push(`/quiz/${quizId}`);
+                return;
+            }
+
             if (statusRes.data) setQuiz(statusRes.data);
             if (questionsRes.data) setQuestions(questionsRes.data);
+
+            // Get current user
+            const supabaseClient = createClient();
+            const { data: { user } } = await supabaseClient.auth.getUser();
+            if (user) {
+                setCurrentUserId(user.id);
+                const { data: profile } = await supabaseClient
+                    .from('profiles')
+                    .select('full_name, handle')
+                    .eq('id', user.id)
+                    .single();
+                if (profile) setCurrentUserName(profile.full_name || profile.handle || 'Player');
+            }
+
+            // Join as active participant (prevents duplicate sessions)
+            await joinAsParticipant(quizId);
+
+            // Load initial leaderboard from DB
+            const { data: participants } = await supabaseClient
+                .from('quiz_participants')
+                .select('user_id, score, profiles(full_name, handle)')
+                .eq('quiz_id', quizId)
+                .eq('is_active', true)
+                .order('score', { ascending: false })
+                .limit(20);
+
+            if (participants) {
+                setLeaderboard(participants.map((p: any) => ({
+                    user_id: p.user_id,
+                    name: p.profiles?.full_name || p.profiles?.handle || 'Player',
+                    score: p.score
+                })));
+            }
+
             setLoading(false);
         };
         init();
     }, [quizId]);
 
-    // 2. Real-time Leaderboard & Sync
+    // 2. Real-time Leaderboard (Postgres Changes) + Quiz End Detection
     useEffect(() => {
         if (!quizId) return;
 
-        const channel = supabase.channel(`leaderboard_${quizId}`)
-            .on('broadcast', { event: 'score_update' }, ({ payload }) => {
-                setLeaderboard(prev => {
-                    const others = prev.filter(p => p.user_id !== payload.user_id);
-                    return [...others, payload].sort((a, b) => b.score - a.score);
-                });
-            })
+        const supabaseClient = createClient();
+
+        // Subscribe to quiz_participants changes for live leaderboard
+        const leaderboardChannel = supabaseClient
+            .channel(`leaderboard_db_${quizId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'quiz_participants',
+                    filter: `quiz_id=eq.${quizId}`
+                },
+                (payload) => {
+                    const updated = payload.new as any;
+                    setLeaderboard(prev => {
+                        const others = prev.filter(p => p.user_id !== updated.user_id);
+                        const name = prev.find(p => p.user_id === updated.user_id)?.name || 'Player';
+                        return [...others, { user_id: updated.user_id, name, score: updated.score }]
+                            .sort((a, b) => b.score - a.score);
+                    });
+                }
+            )
+            // Also listen for quiz status changes (quiz end broadcast)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'quizzes',
+                    filter: `id=eq.${quizId}`
+                },
+                (payload) => {
+                    if (payload.new.status === 'completed') {
+                        setQuizEnded(true);
+                        setCurrentQuestionIndex(questions.length);
+                    }
+                }
+            )
             .subscribe();
 
-        return () => { supabase.removeChannel(channel); };
-    }, [quizId]);
+        return () => { supabaseClient.removeChannel(leaderboardChannel); };
+    }, [quizId, questions.length]);
 
     // 3. Central Synchronization Loop
     useEffect(() => {
@@ -83,14 +169,17 @@ function QuizPlayContent() {
             const start = new Date(quiz.scheduled_at).getTime();
             const elapsedSeconds = Math.floor((now - start) / 1000);
 
-            // Global Quiz Timer
-            const totalDuration = (quiz.duration_minutes || 15) * 60;
+            // Exact Quiz Timer based on sum of question timers
+            const totalDuration = questions.reduce((acc, q) => acc + (q.timer_seconds || 15), 0);
             const remainingQuizTime = Math.max(0, totalDuration - elapsedSeconds);
             setQuizTimeRemaining(remainingQuizTime);
 
             if (remainingQuizTime <= 0) {
-                // Quiz Finished
                 setCurrentQuestionIndex(questions.length);
+                if (!quizEnded && quiz?.status === 'live') {
+                    setQuizEnded(true);
+                    endQuiz(quizId);
+                }
                 return;
             }
 
@@ -121,7 +210,7 @@ function QuizPlayContent() {
         const interval = setInterval(sync, 1000);
         sync();
         return () => clearInterval(interval);
-    }, [quiz, questions, currentQuestionIndex]);
+    }, [quiz, questions, currentQuestionIndex, quizEnded]);
 
     const handleOptionSelect = async (index: number) => {
         if (showResult || currentQuestionIndex < 0) return;
@@ -130,30 +219,23 @@ function QuizPlayContent() {
         const currentQ = questions[currentQuestionIndex];
         const responseTimeMs = ((currentQ.timer_seconds || 15) - qTimeRemaining) * 1000;
 
-        // Secure Submission
         const result = await submitAnswerSecure({
             quizId,
             questionId: currentQ.id,
+            questionIndex: currentQuestionIndex,
             chosenIndex: index,
             responseTimeMs
         });
 
         if (result.success) {
-            setIsCorrect(index === currentQ.correct_option_index);
+            const correct = index === currentQ.correct_option_index;
+            setIsCorrect(correct);
             setPointsEarned(result.points || 0);
             setTotalScore(prev => prev + (result.points || 0));
+            setTotalAnswered(prev => prev + 1);
+            if (correct) setCorrectAnswers(prev => prev + 1);
             setShowResult(true);
-
-            // Broadcast score update to others
-            supabase.channel(`leaderboard_${quizId}`).send({
-                type: 'broadcast',
-                event: 'score_update',
-                payload: {
-                    user_id: 'me', // Real userId would be better but Presence key is used in lobby
-                    name: 'You',
-                    score: totalScore + (result.points || 0)
-                }
-            });
+            // No manual broadcast needed — DB update triggers Postgres Changes automatically
         } else {
             toast.error(result.error || "Submission rejected");
         }
@@ -173,6 +255,13 @@ function QuizPlayContent() {
     );
 
     if (currentQuestionIndex >= questions.length || quizTimeRemaining <= 0) {
+        // Compute final stats
+        const myRankIndex = leaderboard.findIndex(p => p.user_id === currentUserId);
+        const myRank = myRankIndex >= 0 ? myRankIndex + 1 : leaderboard.length + 1;
+        const accuracy = totalAnswered > 0
+            ? Math.round((correctAnswers / totalAnswered) * 100)
+            : 0;
+
         return (
             <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center p-6">
                 <Antigravity count={100} color="#F59E0B" />
@@ -183,12 +272,14 @@ function QuizPlayContent() {
 
                     <div className="grid grid-cols-2 gap-4 mb-12">
                         <div className="p-6 rounded-3xl bg-white/5 border border-white/10">
-                            <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-2">Global Rank</p>
-                            <p className="text-4xl font-black italic text-amber-500">TBD</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-2">Final Rank</p>
+                            <p className="text-4xl font-black italic text-amber-500">#{myRank}</p>
+                            <p className="text-[9px] font-black uppercase tracking-widest opacity-30 mt-1">of {leaderboard.length} players</p>
                         </div>
                         <div className="p-6 rounded-3xl bg-white/5 border border-white/10">
                             <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-2">Accuracy</p>
-                            <p className="text-4xl font-black italic">--%</p>
+                            <p className="text-4xl font-black italic">{accuracy}%</p>
+                            <p className="text-[9px] font-black uppercase tracking-widest opacity-30 mt-1">{correctAnswers}/{totalAnswered} correct</p>
                         </div>
                     </div>
 
@@ -233,11 +324,11 @@ function QuizPlayContent() {
 
                             <div className="h-px bg-white/5 my-6" />
 
-                            {/* Broadcaster Leaderboard */}
+                            {/* Live Leaderboard from DB */}
                             <div className="space-y-2 opacity-60">
                                 {leaderboard.map((p, i) => (
-                                    <div key={i} className="flex justify-between items-center p-3 rounded-xl border border-white/5 bg-white/5">
-                                        <span className="text-[10px] font-black italic">#{i + 1} {p.name}</span>
+                                    <div key={i} className={`flex justify-between items-center p-3 rounded-xl border border-white/5 ${p.user_id === currentUserId ? 'bg-amber-500/10 border-amber-500/20' : 'bg-white/5'}`}>
+                                        <span className="text-[10px] font-black italic">#{i + 1} {p.user_id === currentUserId ? currentUserName : p.name}</span>
                                         <span className="text-xs font-black">{p.score}</span>
                                     </div>
                                 ))}
@@ -278,14 +369,14 @@ function QuizPlayContent() {
 
                         {/* Question View */}
                         <div className="flex-1 flex flex-col justify-center">
-                            <div className="bg-white/5 border border-white/10 rounded-[4rem] p-12 md:p-20 backdrop-blur-3xl relative overflow-hidden group">
+                            <div className="bg-white/5 border border-white/10 rounded-[3rem] p-6 md:p-10 backdrop-blur-3xl relative overflow-hidden group">
                                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-20" />
 
-                                <h3 className="text-4xl md:text-6xl font-black mb-12 leading-[1.1] italic uppercase tracking-tighter">
+                                <h3 className="text-2xl md:text-3xl lg:text-4xl font-black mb-8 leading-[1.2] italic uppercase tracking-tighter">
                                     {currentQ?.question_text}
                                 </h3>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {currentQ?.options?.map((option: string, index: number) => {
                                         const isSelected = selectedOption === index;
                                         const isCorrectOption = index === currentQ.correct_option_index;
@@ -297,8 +388,8 @@ function QuizPlayContent() {
                                                 key={index}
                                                 onClick={() => handleOptionSelect(index)}
                                                 disabled={showResult}
-                                                className={`p-8 rounded-[2rem] border-4 text-left transition-all duration-500 relative group flex items-start gap-5 ${showCorrect
-                                                    ? 'bg-emerald-500 border-emerald-500 text-white shadow-2xl shadow-emerald-500/40 scale-105 z-10'
+                                                className={`p-4 md:p-6 rounded-3xl border-4 text-left transition-all duration-500 relative group flex items-start gap-4 ${showCorrect
+                                                    ? 'bg-emerald-500 border-emerald-500 text-white shadow-2xl shadow-emerald-500/40 scale-[1.02] z-10'
                                                     : showWrong
                                                         ? 'bg-red-500 border-red-500 text-white shadow-2xl shadow-red-500/40 z-10'
                                                         : isSelected
@@ -306,13 +397,13 @@ function QuizPlayContent() {
                                                             : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20'
                                                     }`}
                                             >
-                                                <div className={`w-12 h-12 rounded-2xl border-2 flex items-center justify-center font-black text-xl italic flex-shrink-0 transition-colors ${isSelected || showCorrect || showWrong ? 'border-white/40 bg-white/20' : 'border-white/10 opacity-30'}`}>
+                                                <div className={`w-10 h-10 rounded-xl border-2 flex items-center justify-center font-black text-lg italic flex-shrink-0 transition-colors ${isSelected || showCorrect || showWrong ? 'border-white/40 bg-white/20' : 'border-white/10 opacity-30'}`}>
                                                     {String.fromCharCode(65 + index)}
                                                 </div>
-                                                <span className="text-lg font-black uppercase tracking-tight leading-tight pt-1">{option}</span>
+                                                <span className="text-sm md:text-base font-black uppercase tracking-tight leading-tight pt-1">{option}</span>
 
-                                                {showCorrect && <CheckCircle className="w-8 h-8 ml-auto drop-shadow-lg" />}
-                                                {showWrong && <XCircle className="w-8 h-8 ml-auto drop-shadow-lg" />}
+                                                {showCorrect && <CheckCircle className="w-6 h-6 ml-auto drop-shadow-lg" />}
+                                                {showWrong && <XCircle className="w-6 h-6 ml-auto drop-shadow-lg" />}
                                             </button>
                                         );
                                     })}
