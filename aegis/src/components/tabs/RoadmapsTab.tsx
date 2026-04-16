@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Map, Plus } from 'lucide-react';
+import { Search, Map, Plus, Trash2 } from 'lucide-react';
 
 interface Roadmap {
   id: string | number;
@@ -18,6 +18,7 @@ interface RoadmapsTabProps {
   basePath?: string;
   actionLabel?: string;
   onAddClick?: () => void;
+  onDeleteClick?: (id: string | number) => void;
 }
 
 const getColorStyles = (color: string) => {
@@ -90,7 +91,7 @@ const getColorStyles = (color: string) => {
   return colors[color] || colors.purple; // Default to purple if color not found
 };
 
-const RoadmapsTab: React.FC<RoadmapsTabProps> = ({ isDark, roadmaps, basePath = '/roadmaps', actionLabel = 'Analyze Mastery', onAddClick }) => {
+const RoadmapsTab: React.FC<RoadmapsTabProps> = ({ isDark, roadmaps, basePath = '/roadmaps', actionLabel = 'Analyze Mastery', onAddClick, onDeleteClick }) => {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -145,6 +146,20 @@ const RoadmapsTab: React.FC<RoadmapsTabProps> = ({ isDark, roadmaps, basePath = 
                   ? `bg-white/[0.02] border-white/10 ${styles.border} shadow-2xl`
                   : `bg-white border-black/10 shadow-xl hover:shadow-2xl`}`}
               >
+                <div className="absolute top-8 right-8 z-20">
+                  {onDeleteClick && (typeof r.id !== 'string' || !r.id.match(/^[a-z]+$/)) ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteClick!(r.id);
+                      }}
+                      className="p-2 rounded-full bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-colors"
+                      title="Delete Roadmap"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  ) : null}
+                </div>
                 <div className={`w-16 h-16 rounded-[1.5rem] mb-10 flex items-center justify-center ${styles.bg} ${styles.text} shadow-lg ${styles.shadow}`}>
                   <Map className="w-8 h-8" />
                 </div>

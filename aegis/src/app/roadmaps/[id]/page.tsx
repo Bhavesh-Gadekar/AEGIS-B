@@ -12,9 +12,12 @@ import {
     Video,
     Code,
     Trophy,
-    Star
+    Star,
+    Brain
 } from 'lucide-react';
 import { useAppContext } from '../../../components/AppProvider';
+import { getRoadmapById, getRoadmapProgress, updateRoadmapProgress } from '@/actions/roadmaps';
+import { PREDEFINED_ROADMAPS } from '@/data/roadmapData';
 
 const Antigravity = dynamic(() => import('../../../components/AntigravityInteractive'), {
     ssr: false,
@@ -440,52 +443,115 @@ export default function RoadmapDetailPage() {
 
     // Derived data from static config
     const data = ROADMAP_DETAILS[id];
+    const [dynamicData, setDynamicData] = useState<any>(null);
 
     // Initialize state with data.modules if available
     const [modules, setModules] = useState<any[]>([]);
 
     useEffect(() => {
         if (data && modules.length === 0) {
-            setModules(data.modules);
+            getRoadmapProgress(id).then((res) => {
+                const count = res.success && res.progress ? parseInt(res.progress.completed_module_count) || 0 : 0;
+                const initializedModules = data.modules.map((m: any, idx: number) => {
+                    const isCompleted = idx < count;
+                    const isCurrent = idx === count;
+                    return { ...m, status: isCompleted ? 'completed' : (isCurrent ? 'in-progress' : 'locked') };
+                });
+                setModules(initializedModules);
+            });
+        } else if (!data) {
+            getRoadmapById(id).then((roadmap) => {
+                let sourceRoadmap = roadmap;
+                if (!sourceRoadmap) {
+                    sourceRoadmap = PREDEFINED_ROADMAPS.find(r => r.id === id || r.id.toString() === id) as any;
+                }
+
+                if (sourceRoadmap) {
+                    getRoadmapProgress(id).then((res) => {
+                        const count = res.success && res.progress ? parseInt(res.progress.completed_module_count) || 0 : 0;
+                        const customData = {
+                            title: sourceRoadmap.title,
+                            field: sourceRoadmap.field,
+                            color: sourceRoadmap.color,
+                            description: 'Foundational Roadmap for ' + sourceRoadmap.field + ' mastery.',
+                            modules: sourceRoadmap.steps.map((step: string, idx: number) => {
+                                const isCompleted = idx < count;
+                                const isCurrent = idx === count;
+                                return {
+                                    id: idx + 1,
+                                    title: step,
+                                    status: isCompleted ? 'completed' : (isCurrent ? 'in-progress' : 'locked'),
+                                    topics: [
+                                        { name: 'Fundamental theory', type: 'article', duration: '30m' },
+                                        { name: 'Practical exercises', type: 'video', duration: '45m' },
+                                        { name: 'Hands-on project base', type: 'code', duration: '1h' }
+                                    ]
+                                };
+                            })
+                        };
+                        setDynamicData(customData);
+                        if (modules.length === 0) {
+                            setModules(customData.modules);
+                        }
+                    });
+                } else {
+                    setDynamicData({ notFound: true });
+                }
+            });
         }
-    }, [data, modules.length]);
+    }, [data, id]);
 
+    const finalData = data || (dynamicData && !dynamicData.notFound ? dynamicData : null);
 
-    const handleToggleModule = (moduleId: number) => {
+    const handleToggleModule = async (moduleId: number) => {
+        let newCount = 0;
+        let didChange = false;
+
         setModules(prev => {
             const newModules = [...prev];
             const modIndex = newModules.findIndex(m => m.id === moduleId);
 
-            if (modIndex === -1) return prev;
+            if (modIndex === -1 || newModules[modIndex].status === 'locked') return prev;
 
             const currentModule = newModules[modIndex];
-            if (currentModule.status === 'locked') return prev; // Cannot toggle locked
-
-            // Toggle logic
             const newStatus = currentModule.status === 'completed' ? 'in-progress' : 'completed';
             newModules[modIndex] = { ...currentModule, status: newStatus };
+            didChange = true;
 
-            // Unlock next module if completing
-            if (newStatus === 'completed') {
-                const nextIndex = modIndex + 1;
-                if (nextIndex < newModules.length) {
-                    const nextModule = newModules[nextIndex];
-                    if (nextModule.status === 'locked') {
-                        newModules[nextIndex] = { ...nextModule, status: 'in-progress' };
+            // Enforce linear lock/unlock propagation
+            let runningCount = 0;
+            for (let i = 0; i < newModules.length; i++) {
+                if (newModules[i].status === 'completed') {
+                    runningCount++;
+                } else {
+                    // This is the frontier
+                    if (newModules[i].status !== 'in-progress') {
+                        newModules[i] = { ...newModules[i], status: 'in-progress' };
                     }
+                    // Lock all subsequent modules
+                    for (let j = i + 1; j < newModules.length; j++) {
+                        newModules[j] = { ...newModules[j], status: 'locked' };
+                    }
+                    break;
                 }
             }
-
+            newCount = runningCount;
             return newModules;
         });
+
+        if (didChange) {
+            // Because setModules is async, we use the locally calculated newCount
+            const isFullyCompleted = newCount === modules.length;
+            await updateRoadmapProgress(id, newCount.toString(), isFullyCompleted);
+        }
     };
 
     const completedCount = modules.filter(m => m.status === 'completed').length;
     const progressPercentage = modules.length > 0 ? Math.round((completedCount / modules.length) * 100) : 0;
 
-    if (!data) return (
+    if (!finalData) return (
         <div className="min-h-screen flex items-center justify-center bg-black text-white font-bold">
-            Roadmap not found.
+            Roadmap not found or loading...
         </div>
     );
 
@@ -500,7 +566,7 @@ export default function RoadmapDetailPage() {
                     ringRadius={4}
                     color={isDark ? "#ffffff" : "#5227FF"}
                 />
-                <div className={`absolute top-0 right-0 w-[60%] h-[60%] blur-[150px] rounded-full opacity-20 ${isDark ? `bg-${data.color}-900` : `bg-${data.color}-200`
+                <div className={`absolute top-0 right-0 w-[60%] h-[60%] blur-[150px] rounded-full opacity-20 ${isDark ? `bg-${finalData.color}-900` : `bg-${finalData.color}-200`
                     }`} />
             </div>
 
@@ -517,18 +583,18 @@ export default function RoadmapDetailPage() {
 
                     <div className="flex flex-col md:flex-row items-start justify-between gap-8">
                         <div>
-                            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest mb-4 border ${isDark ? `bg-${data.color}-500/10 border-${data.color}-500/20 text-${data.color}-400` : `bg-${data.color}-50 border-${data.color}-100 text-${data.color}-600`
+                            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest mb-4 border ${isDark ? `bg-${finalData.color}-500/10 border-${finalData.color}-500/20 text-${finalData.color}-400` : `bg-${finalData.color}-50 border-${finalData.color}-100 text-${finalData.color}-600`
                                 }`}>
-                                <Map className="w-3 h-3" /> {data.field}
+                                <Map className="w-3 h-3" /> {finalData.field}
                             </div>
-                            <h1 className="text-4xl md:text-6xl font-black tracking-tight mb-4">{data.title}</h1>
-                            <p className="text-lg opacity-60 max-w-xl leading-relaxed">{data.description}</p>
+                            <h1 className="text-4xl md:text-6xl font-black tracking-tight mb-4">{finalData.title}</h1>
+                            <p className="text-lg opacity-60 max-w-xl leading-relaxed">{finalData.description}</p>
                         </div>
 
                         <div className={`p-6 rounded-3xl border text-center min-w-[200px] transition-all duration-500 hover:scale-105 ${isDark ? 'bg-white/5 border-white/10' : 'bg-white border-black/5 shadow-lg'
                             }`}>
                             <div className="flex justify-center mb-2">
-                                <Trophy className={`w-8 h-8 text-${data.color}-500 transition-all duration-500 ${progressPercentage === 100 ? 'animate-bounce' : ''}`} />
+                                <Trophy className={`w-8 h-8 text-${finalData.color}-500 transition-all duration-500 ${progressPercentage === 100 ? 'animate-bounce' : ''}`} />
                             </div>
                             <div className="text-3xl font-black mb-1 transition-all" key={progressPercentage}>{progressPercentage}%</div>
                             <div className="text-[10px] uppercase font-bold tracking-widest opacity-50">Mastery Level</div>
@@ -548,11 +614,35 @@ export default function RoadmapDetailPage() {
                             module={module}
                             index={index}
                             isLast={index === modules.length - 1}
-                            color={data.color}
+                            color={finalData.color}
                             isDark={isDark}
                             onToggle={handleToggleModule}
                         />
                     ))}
+                </div>
+
+                <div className="mt-16 flex flex-col items-center justify-center">
+                    <div className={`p-6 md:p-8 text-center rounded-[2rem] border transition-all duration-500 max-w-lg w-full ${isDark ? 'bg-gradient-to-b from-white/5 to-transparent border-white/10' : 'bg-gradient-to-b from-black/5 to-transparent border-black/10'} ${progressPercentage < 100 ? 'opacity-60 grayscale' : ''}`}>
+                        <Brain className={`w-12 h-12 mx-auto mb-4 ${isDark ? `text-${finalData.color}-400` : `text-${finalData.color}-500`} ${progressPercentage === 100 ? 'animate-pulse' : ''}`} />
+                        <h2 className="text-2xl font-black mb-3 uppercase tracking-tight">Final Assessment</h2>
+                        <p className="text-xs opacity-60 mb-6 max-w-sm mx-auto">
+                            {progressPercentage === 100 
+                                ? "Verify your mastery dynamically. An AI-generated, custom-built exam evaluating your foundation in this roadmap."
+                                : "Complete all preceding modules in this roadmap to unlock your mastery assessment."}
+                        </p>
+                        
+                        <button
+                            onClick={() => router.push(`/roadmaps/${id}/quiz`)}
+                            disabled={progressPercentage < 100}
+                            className={`w-full md:w-auto px-8 py-4 rounded-full font-black uppercase tracking-[0.2em] text-[10px] transition-all shadow-xl 
+                                ${progressPercentage === 100 
+                                    ? `active:scale-95 cursor-pointer ${isDark ? `bg-${finalData.color}-500 hover:bg-${finalData.color}-400 text-white` : `bg-${finalData.color}-600 hover:bg-${finalData.color}-500 text-white`}`
+                                    : `cursor-not-allowed ${isDark ? 'bg-white/5 text-gray-500' : 'bg-black/5 text-gray-400'}`
+                                }`}
+                        >
+                            {progressPercentage === 100 ? 'Take Mastery Quiz' : 'Locked'}
+                        </button>
+                    </div>
                 </div>
 
             </div>
