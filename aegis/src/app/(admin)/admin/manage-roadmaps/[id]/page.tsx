@@ -14,7 +14,9 @@ import {
     Code,
 } from 'lucide-react';
 import { useAppContext } from '@/components/AppProvider';
-import { getRoadmapDetails, Module } from '@/data/roadmapDetails';
+import { getRoadmapById } from '@/actions/roadmaps';
+import { PREDEFINED_ROADMAPS } from '@/data/roadmapData';
+import { getRoadmapDetails } from '@/data/roadmapDetails';
 
 const Antigravity = dynamic(() => import('@/components/AntigravityInteractive'), {
     ssr: false,
@@ -97,19 +99,53 @@ export default function AdminRoadmapDetailPage() {
     const { isDark } = useAppContext();
 
     // Data handling
-    const data = getRoadmapDetails(id);
-    const [modules, setModules] = useState<Module[]>([]);
+    const [staticData] = useState(() => getRoadmapDetails(id));
+    const [dynamicData, setDynamicData] = useState<any>(null);
+    const [modules, setModules] = useState<any[]>([]);
 
     useEffect(() => {
-        if (data && modules.length === 0) {
-            setModules(data.modules);
+        if (staticData && modules.length === 0) {
+            setModules(staticData.modules);
+        } else if (!staticData) {
+            getRoadmapById(id).then((roadmap) => {
+                let sourceRoadmap = roadmap;
+                if (!sourceRoadmap) {
+                    sourceRoadmap = PREDEFINED_ROADMAPS.find(r => r.id === id || r.id.toString() === id) as any;
+                }
+
+                if (sourceRoadmap) {
+                    const customData = {
+                        title: sourceRoadmap.title,
+                        field: sourceRoadmap.field,
+                        color: sourceRoadmap.color,
+                        description: 'Foundational Roadmap for ' + sourceRoadmap.field + ' mastery.',
+                        modules: sourceRoadmap.steps.map((step: string, idx: number) => ({
+                            id: idx + 1,
+                            title: step,
+                            status: 'locked',
+                            topics: [
+                                { name: 'Fundamental theory', type: 'article', duration: '30m' },
+                                { name: 'Practical exercises', type: 'video', duration: '45m' },
+                                { name: 'Hands-on project base', type: 'code', duration: '1h' }
+                            ]
+                        }))
+                    };
+                    setDynamicData(customData);
+                    if (modules.length === 0) {
+                        setModules(customData.modules);
+                    }
+                } else {
+                    setDynamicData({ notFound: true });
+                }
+            });
         }
-    }, [data, modules.length]);
+    }, [staticData, modules.length, id]);
 
+    const finalData = staticData || (dynamicData && !dynamicData.notFound ? dynamicData : null);
 
-    if (!data) return (
+    if (!finalData) return (
         <div className={`min-h-screen flex items-center justify-center font-bold uppercase tracking-widest ${isDark ? 'bg-black text-white' : 'bg-white text-black'}`}>
-            Roadmap not found.
+            Roadmap not found or loading...
         </div>
     );
 
@@ -124,7 +160,7 @@ export default function AdminRoadmapDetailPage() {
                     ringRadius={4}
                     color={isDark ? "#ffffff" : "#5227FF"}
                 />
-                <div className={`absolute top-0 right-0 w-[60%] h-[60%] blur-[150px] rounded-full opacity-20 ${isDark ? `bg-${data.color}-900` : `bg-${data.color}-200`
+                <div className={`absolute top-0 right-0 w-[60%] h-[60%] blur-[150px] rounded-full opacity-20 ${isDark ? `bg-${finalData.color}-900` : `bg-${finalData.color}-200`
                     }`} />
             </div>
 
@@ -141,12 +177,12 @@ export default function AdminRoadmapDetailPage() {
 
                     <div className="flex flex-col md:flex-row items-start justify-between gap-8">
                         <div>
-                            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest mb-4 border ${isDark ? `bg-${data.color}-500/10 border-${data.color}-500/20 text-${data.color}-400` : `bg-${data.color}-50 border-${data.color}-100 text-${data.color}-600`
+                            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest mb-4 border ${isDark ? `bg-${finalData.color}-500/10 border-${finalData.color}-500/20 text-${finalData.color}-400` : `bg-${finalData.color}-50 border-${finalData.color}-100 text-${finalData.color}-600`
                                 }`}>
-                                <Map className="w-3 h-3" /> {data.field}
+                                <Map className="w-3 h-3" /> {finalData.field}
                             </div>
-                            <h1 className="text-4xl md:text-6xl font-black tracking-tight mb-4">{data.title}</h1>
-                            <p className="text-lg opacity-60 max-w-xl leading-relaxed">{data.description}</p>
+                            <h1 className="text-4xl md:text-6xl font-black tracking-tight mb-4">{finalData.title}</h1>
+                            <p className="text-lg opacity-60 max-w-xl leading-relaxed">{finalData.description}</p>
                         </div>
                     </div>
                 </div>
@@ -157,13 +193,13 @@ export default function AdminRoadmapDetailPage() {
                     <div className={`absolute left-3 top-0 bottom-0 w-0.5 md:hidden ${isDark ? 'bg-white/10' : 'bg-black/5'
                         }`} />
 
-                    {modules.map((module: Module, index: number) => (
+                    {modules.map((module: any, index: number) => (
                         <RoadmapStep
                             key={module.id}
                             module={module}
                             index={index}
                             isLast={index === modules.length - 1}
-                            color={data.color}
+                            color={finalData.color}
                             isDark={isDark}
                         />
                     ))}

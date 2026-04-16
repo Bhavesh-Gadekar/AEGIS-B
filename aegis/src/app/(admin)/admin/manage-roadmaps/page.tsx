@@ -6,7 +6,7 @@ import { Plus, X } from 'lucide-react';
 import { useAppContext } from '@/components/AppProvider';
 import { PREDEFINED_ROADMAPS, RoadmapItem } from '@/data/roadmapData';
 import RoadmapsTab from '@/components/tabs/RoadmapsTab';
-import { getRoadmaps, createRoadmap } from '@/actions/roadmaps';
+import { getRoadmaps, createRoadmap, deleteRoadmap } from '@/actions/roadmaps';
 import { toast } from 'sonner';
 
 export default function AdminRoadmapsPage() {
@@ -52,7 +52,7 @@ export default function AdminRoadmapsPage() {
             title: newRoadmap.title || 'Untitled',
             field: newRoadmap.field || 'General',
             color: (newRoadmap.color as any) || 'blue',
-            steps: steps.length > 0 ? steps : ['Step 1', 'Step 2', 'Step 3']
+            steps: steps
         };
 
         try {
@@ -74,6 +74,22 @@ export default function AdminRoadmapsPage() {
         }
     };
 
+    const handleDeleteRoadmap = async (id: string | number) => {
+        if (!confirm('Are you sure you want to delete this custom roadmap?')) return;
+        try {
+            const res = await deleteRoadmap(id.toString());
+            if (res.success) {
+                toast.success('Roadmap deleted safely');
+                const dbRoadmaps = await getRoadmaps();
+                setRoadmaps([...PREDEFINED_ROADMAPS, ...dbRoadmaps]);
+            } else {
+                toast.error(res.error || 'Failed to delete roadmap');
+            }
+        } catch(e: any) {
+            toast.error(e.message || 'Error deleting roadmap');
+        }
+    };
+
     return (
         <>
             <RoadmapsTab
@@ -82,6 +98,7 @@ export default function AdminRoadmapsPage() {
                 basePath="/admin/manage-roadmaps"
                 actionLabel="View Roadmap"
                 onAddClick={() => setIsModalOpen(true)}
+                onDeleteClick={handleDeleteRoadmap}
             />
 
             {/* Add Modal */}
@@ -138,7 +155,7 @@ export default function AdminRoadmapsPage() {
                             </div>
 
                             <div>
-                                <label className="block text-[10px] font-black uppercase tracking-widest mb-2 opacity-60">Roadmap Steps <span className="normal-case opacity-50 ml-2">(comma separated)</span></label>
+                                <label className="block text-[10px] font-black uppercase tracking-widest mb-2 opacity-60">Roadmap Steps <span className="normal-case opacity-50 ml-2">(comma separated) - Leave empty to auto-generate with AI</span></label>
                                 <textarea
                                     value={stepsInput}
                                     onChange={(e) => setStepsInput(e.target.value)}

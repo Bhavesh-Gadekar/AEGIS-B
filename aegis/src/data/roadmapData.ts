@@ -5,6 +5,7 @@ export interface RoadmapItem {
     field: string;
     color: 'blue' | 'purple' | 'emerald' | 'amber' | 'orange' | 'cyan' | 'pink';
     steps: string[];
+    quiz_data?: any[];
 }
 
 export const PREDEFINED_ROADMAPS: RoadmapItem[] = [
@@ -58,4 +59,32 @@ export const PREDEFINED_ROADMAPS: RoadmapItem[] = [
     { id: 'sales-eng', title: 'Sales Engineer', field: 'Other', color: 'pink', steps: ['Product Knowledge', 'Presentation Skills', 'Technical Demos', 'Sales Process', 'Problem Solving'] },
     { id: 'sup-eng', title: 'Support Engineer', field: 'Other', color: 'pink', steps: ['Troubleshooting', 'Customer Service', 'OS/Network Basics', 'Documentation', 'Escalation Processes'] },
     { id: 'it-spec', title: 'IT Specialist', field: 'Operations', color: 'cyan', steps: ['Hardware Troubleshooting', 'Help Desk', 'Asset Management', 'Software Installation', 'Network Basics'] }
+];
+
+export const GENERIC_PREDEFINED_QUIZ = [
+    {
+        question: "Which of the following is considered a core foundational concept in this roadmap's domain?",
+        options: ["Microservice deployment", "Memory management", "Fundamental theory and syntax", "Load balancing algorithms"],
+        correctIndex: 2
+    },
+    {
+        question: "What is typically the primary goal when applying the advanced methodologies of this track?",
+        options: ["Scaling infrastructure", "Optimizing performance and correctness", "Deprecating old systems", "Marketing generation"],
+        correctIndex: 1
+    },
+    {
+        question: "During practical application, which testing strategy is universally recommended?",
+        options: ["Ignoring edge cases", "Deploying directly to production", "Comprehensive unit and integration testing", "Only testing happy paths"],
+        correctIndex: 2
+    },
+    {
+        question: "Which pattern strictly dictates the separation of concerns in modern architecture?",
+        options: ["Monolithic convergence", "Spaghetti coding", "Modular design patterns", "Circular dependencies"],
+        correctIndex: 2
+    },
+    {
+        question: "To achieve total mastery in this field, what must a professional continuously do?",
+        options: ["Memorize deprecated documentation", "Adapt to emerging standards and continuous learning", "Rely entirely on AI templates", "Avoid looking at source code"],
+        correctIndex: 1
+    }
 ];
