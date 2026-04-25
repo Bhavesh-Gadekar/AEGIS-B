@@ -13,8 +13,9 @@ const Antigravity = dynamic(() => import('../../components/AntigravityInteractiv
 
 import { useSearchParams } from 'next/navigation';
 import { useAppContext } from '@/components/AppProvider';
+import { Sun, Moon } from 'lucide-react';
 
-export default function SignUpPage() {
+function SignUpContent() {
   const searchParams = useSearchParams();
   const message = searchParams.get('message');
   const { isDark, toggleTheme } = useAppContext();
@@ -310,5 +311,10 @@ export default function SignUpPage() {
   );
 }
 
-// Import missing icons
-import { Sun, Moon } from 'lucide-react';
+export default function SignUpPage() {
+  return (
+    <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black text-white">Loading...</div>}>
+      <SignUpContent />
+    </React.Suspense>
+  );
+}

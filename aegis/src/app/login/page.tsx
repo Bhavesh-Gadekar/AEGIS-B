@@ -13,8 +13,9 @@ const Antigravity = dynamic(() => import('../../components/AntigravityInteractiv
 
 import { useSearchParams } from 'next/navigation';
 import { useAppContext } from '@/components/AppProvider';
+import { Sun, Moon } from 'lucide-react';
 
-export default function LoginPage() {
+function LoginContent() {
   const searchParams = useSearchParams();
   const message = searchParams.get('message');
   const { isDark, toggleTheme } = useAppContext();
@@ -158,13 +159,13 @@ export default function LoginPage() {
 
             {/* Submit Button */}
             <button
-              type="submit"
-              className={`w-full py-4 rounded-2xl font-black uppercase tracking-[0.2em] text-[11px] transition-all duration-300 transform active:scale-95 shadow-xl ${isDark
-                ? 'bg-white text-black hover:bg-gray-100 shadow-white/10'
-                : 'bg-black text-white hover:bg-gray-800 shadow-black/20'
-                }`}
+               type="submit"
+               className={`w-full py-4 rounded-2xl font-black uppercase tracking-[0.2em] text-[11px] transition-all duration-300 transform active:scale-95 shadow-xl ${isDark
+                 ? 'bg-white text-black hover:bg-gray-100 shadow-white/10'
+                 : 'bg-black text-white hover:bg-gray-800 shadow-black/20'
+                 }`}
             >
-              Sign In to AEGIS
+               Sign In to AEGIS
             </button>
           </div>
         </form>
@@ -189,5 +190,10 @@ export default function LoginPage() {
   );
 }
 
-// Import missing icons
-import { Sun, Moon } from 'lucide-react';
+export default function LoginPage() {
+  return (
+    <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black text-white">Loading...</div>}>
+      <LoginContent />
+    </React.Suspense>
+  );
+}
